@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Watch Deals — worldwide listings</title>
+  <meta name="description" content="Second-hand and pre-owned watch listings collected from around the world. Filter, sort and browse." />
+  <link rel="preconnect" href="https://docs.google.com" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand-block">
+        <h1>⌚ Watch Deals</h1>
+        <p class="tagline">Listings collected from around the world · <span id="totalCount">…</span> watches</p>
+      </div>
+      <div class="header-status" id="headerStatus"></div>
+    </div>
+
+    <div class="filters" id="filters">
+      <div class="filter-field grow">
+        <label for="q">Search</label>
+        <input type="search" id="q" placeholder="Brand, model, description…" autocomplete="off" />
+      </div>
+      <div class="filter-field">
+        <label for="brand">Brand</label>
+        <select id="brand"><option value="">All brands</option></select>
+      </div>
+      <div class="filter-field">
+        <label for="country">Country</label>
+        <select id="country"><option value="">All countries</option></select>
+      </div>
+      <div class="filter-field">
+        <label for="source">Source</label>
+        <select id="source"><option value="">All sources</option></select>
+      </div>
+      <div class="filter-field">
+        <label for="condition">Condition</label>
+        <select id="condition"><option value="">Any condition</option></select>
+      </div>
+      <div class="filter-field narrow">
+        <label for="minPrice">Min $</label>
+        <input type="number" id="minPrice" min="0" step="100" placeholder="0" inputmode="numeric" />
+      </div>
+      <div class="filter-field narrow">
+        <label for="maxPrice">Max $</label>
+        <input type="number" id="maxPrice" min="0" step="100" placeholder="∞" inputmode="numeric" />
+      </div>
+      <div class="filter-field">
+        <label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="date_desc">Date · newest first</option>
+          <option value="date_asc">Date · oldest first</option>
+          <option value="price_asc">Price · low to high</option>
+          <option value="price_desc">Price · high to low</option>
+          <option value="brand_asc">Brand · A–Z</option>
+        </select>
+      </div>
+      <button type="button" id="reset" class="reset-btn" title="Clear all filters">Reset</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="results-bar">
+      <span id="resultsSummary" class="results-summary"></span>
+      <span id="onlyWithPrice" class="chip-toggle">
+        <label><input type="checkbox" id="hasPriceChk" /> Only listings with a price</label>
+      </span>
+    </div>
+
+    <div id="grid" class="grid" aria-live="polite"></div>
+
+    <div id="emptyState" class="empty-state" hidden>
+      <p>No watches match your filters.</p>
+      <button type="button" class="reset-btn" onclick="document.getElementById('reset').click()">Clear filters</button>
+    </div>
+
+    <nav id="pagination" class="pagination" aria-label="Pagination"></nav>
+  </main>
+
+  <footer class="site-footer">
+    <p>Read-only view of a live Google Sheet · data refreshes on page load. Prices shown in USD and ₪ (NIS) only.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
