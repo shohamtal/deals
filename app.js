@@ -33,6 +33,7 @@ const I18N = {
     dir: 'rtl', htmlLang: 'he', flag: '🇮🇱', docTitle: 'דילים', brand: 'דילים',
     strings: {
       searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
+      excludeLabel: 'לא כולל', excludePlaceholder: 'מילים להחרגה (מופרדות בפסיק)…',
       brandLabel: 'מותג', countryLabel: 'מדינה', sourceLabel: 'מקור', conditionLabel: 'מצב',
       anyCondition: 'כל המצבים', minPrice: 'מ־₪', maxPrice: 'עד ₪', sortLabel: 'מיון',
       sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
@@ -59,6 +60,7 @@ const I18N = {
     dir: 'ltr', htmlLang: 'en', flag: '🇺🇸', docTitle: 'Deals', brand: 'Deals',
     strings: {
       searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
+      excludeLabel: 'Exclude', excludePlaceholder: 'Words to exclude (comma-separated)…',
       brandLabel: 'Brand', countryLabel: 'Country', sourceLabel: 'Source', conditionLabel: 'Condition',
       anyCondition: 'Any condition', minPrice: 'Min ₪', maxPrice: 'Max ₪', sortLabel: 'Sort by',
       sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
@@ -102,7 +104,7 @@ let page = 1;
 const el = (id) => document.getElementById(id);
 const grid = el('grid');
 const controls = {
-  q: el('q'), condition: el('condition'),
+  q: el('q'), qx: el('qx'), condition: el('condition'),
   minPrice: el('minPrice'), maxPrice: el('maxPrice'),
   sort: el('sort'), hasPrice: el('hasPriceChk'),
 };
@@ -328,7 +330,7 @@ function updateTagline() {
 async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
-  ['q', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  ['q', 'qx', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
   controls.sort.value = 'date_desc';
   controls.hasPrice.checked = false;
   ['brand', 'country', 'source'].forEach((k) => ms[k] && ms[k].clear());
@@ -370,6 +372,7 @@ function buildFilters() {
 // ---- Filtering + sorting ----
 function applyFilters() {
   const q = controls.q.value.trim().toLowerCase();
+  const exTerms = controls.qx.value.toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
   const brandSet = new Set(ms.brand.getSelected());
   const countrySet = new Set(ms.country.getSelected());
   const sourceSet = new Set(ms.source.getSelected());
@@ -386,9 +389,10 @@ function applyFilters() {
     if (onlyPriced && w.priceUsd == null && w.priceNis == null) return false;
     if (min != null && !(w.priceNis != null && w.priceNis >= min)) return false;
     if (max != null && !(w.priceNis != null && w.priceNis <= max)) return false;
-    if (q) {
+    if (q || exTerms.length) {
       const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country}`.toLowerCase();
-      if (!hay.includes(q)) return false;
+      if (q && !hay.includes(q)) return false;
+      if (exTerms.length && exTerms.some((term) => hay.includes(term))) return false;
     }
     return true;
   });
@@ -548,6 +552,7 @@ function syncUrl() {
   if (lang !== 'he') p.set('lang', lang);
   if (activeCat.id !== CATEGORIES[0].id) p.set('cat', activeCat.id);
   if (controls.q.value.trim()) p.set('q', controls.q.value.trim());
+  if (controls.qx.value.trim()) p.set('qx', controls.qx.value.trim());
   ms.brand.getSelected().forEach((v) => p.append('brand', v));
   ms.country.getSelected().forEach((v) => p.append('country', v));
   ms.source.getSelected().forEach((v) => p.append('source', v));
@@ -565,6 +570,7 @@ function restoreFromUrl() {
   const p = new URLSearchParams(location.search);
   const set = (ctrl, key) => { if (ctrl && p.has(key)) ctrl.value = p.get(key); };
   set(controls.q, 'q');
+  set(controls.qx, 'qx');
   if (p.has('brand')) ms.brand.setSelected(p.getAll('brand'));
   if (p.has('country')) ms.country.setSelected(p.getAll('country'));
   if (p.has('source')) ms.source.setSelected(p.getAll('source'));
@@ -623,6 +629,7 @@ function bindEvents() {
   let tm;
   const debounced = () => { clearTimeout(tm); tm = setTimeout(applyFilters, 200); };
   controls.q.addEventListener('input', debounced);
+  controls.qx.addEventListener('input', debounced);
   controls.minPrice.addEventListener('input', debounced);
   controls.maxPrice.addEventListener('input', debounced);
   ['condition', 'sort'].forEach((k) => controls[k].addEventListener('change', applyFilters));
@@ -630,6 +637,7 @@ function bindEvents() {
 
   el('reset').addEventListener('click', () => {
     controls.q.value = '';
+    controls.qx.value = '';
     controls.condition.value = '';
     controls.minPrice.value = '';
     controls.maxPrice.value = '';
