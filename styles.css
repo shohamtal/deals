@@ -269,9 +269,8 @@ body {
   z-index: 40;
   top: calc(100% + 4px);
   inset-inline-start: 0;
-  min-width: 100%;
-  width: max-content;
-  max-width: 320px;
+  width: 260px;
+  max-width: 90vw;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -291,20 +290,39 @@ body {
   margin-bottom: 6px;
 }
 .ms-search:focus { outline: none; border-color: var(--accent-2); }
-.ms-list { max-height: 260px; overflow-y: auto; }
-.ms-option {
+.ms-list { max-height: 260px; overflow-y: auto; overflow-x: hidden; }
+/* `.filters` prefix so these win over `.filter-field label` (which would
+   otherwise force option text to tiny uppercase faint-grey). */
+.filters .ms-option {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 6px 8px;
   border-radius: 7px;
   cursor: pointer;
-  font-size: .88rem;
+  font-size: .9rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--text);
 }
-.ms-option:hover { background: var(--bg); }
-.ms-option input { accent-color: var(--accent-2); flex-shrink: 0; }
-.ms-option .ms-count { margin-inline-start: auto; color: var(--text-faint); font-size: .78rem; }
+.filters .ms-option:hover { background: var(--bg); }
+/* width:auto overrides `.filters input { width:100% }`, which would otherwise
+   blow the option checkbox up to the full row width and crush the label. */
+.filters .ms-option input { accent-color: var(--accent-2); flex: 0 0 auto; width: auto; margin: 0; }
+.filters .ms-option .ms-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: .9rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.filters .ms-option .ms-count { flex: 0 0 auto; padding-inline-start: 8px; color: var(--text-faint); font-size: .78rem; }
 .ms-option.hidden { display: none; }
 .ms-empty { padding: 8px; color: var(--text-faint); font-size: .82rem; text-align: center; }
 .ms-foot {
