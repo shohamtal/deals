@@ -15,13 +15,11 @@ const CATEGORIES = [
     label: { he: 'שעונים', en: 'Watches' },
     sheetId: '1jbke0dmA01rr-eTtHJ7GHZK4ULVIXi3dlR1P9k5BUWc',
     gid: '0', // "watches" tab
-    columns: {
-      timestamp: 0, source: 1, country: 2, brand: 3, model: 4,
-      price_usd: 5, price_nis: 6, url: 10, image_url: 11,
-      description: 12, condition: 13,
-    },
+    // Columns are read from the CSV by header name. Only add a headerMap entry
+    // (logicalName: 'Actual Header') if a future sheet uses different headers.
+    headerMap: {},
   },
-  // Future tab — flip `comingSoon` off and fill in sheet/columns:
+  // Future tab — flip `comingSoon` off and fill in sheetId/gid:
   { id: 'cars', icon: '🚗', label: { he: 'מכוניות', en: 'Cars' }, comingSoon: true },
 ];
 
@@ -161,6 +159,32 @@ function escapeHtml(s) {
 function safeUrl(u) {
   const s = String(u || '').trim();
   return /^https?:\/\//i.test(s) ? s : '';
+}
+
+// Minimal RFC-4180 CSV parser: handles quoted fields, escaped quotes (""),
+// and commas/newlines inside quotes.
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  const n = text.length;
+  for (let i = 0; i < n; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQ = false; }
+      } else { field += c; }
+    } else if (c === '"') {
+      inQ = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\n') {
+      row.push(field); rows.push(row); row = []; field = '';
+    } else if (c !== '\r') {
+      field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
 }
 
 // ---- Multi-select dropdown (checkboxes + search) ----
@@ -388,39 +412,48 @@ function sortView() {
   VIEW.sort(cmp);
 }
 
-// ---- Fetch & parse gviz (LIVE, never cached) ----
+// ---- Fetch & parse the sheet as CSV (LIVE, never cached) ----
+// The CSV export endpoint reflects true sheet content; the gviz endpoint was
+// dropped because its cached snapshot returned partial rows for this sheet.
 async function loadData(cat) {
-  const base = `https://docs.google.com/spreadsheets/d/${cat.sheetId}/gviz/tq?tqx=out:json&gid=${cat.gid}`;
+  const base = `https://docs.google.com/spreadsheets/d/${cat.sheetId}/export?format=csv&gid=${cat.gid}`;
   const url = `${base}&_=${Date.now()}`; // cache-buster; paired with cache:no-store below
   const res = await fetch(url, { method: 'GET', cache: 'no-store' });
   if (!res.ok) throw new Error(`Sheet request failed (HTTP ${res.status})`);
   const text = await res.text();
-  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-  const rows = json.table.rows || [];
-  const C = cat.columns;
-  const cell = (r, i) => { const c = r.c && r.c[i]; return c && c.v !== null && c.v !== undefined ? c.v : ''; };
+  const rows = parseCSV(text);
+  if (rows.length < 2) return [];
 
-  const listOut = [];
-  for (const r of rows) {
-    const ts = String(cell(r, C.timestamp)).trim();
+  const idx = {};
+  rows[0].forEach((h, i) => { idx[String(h).trim()] = i; });
+  const map = cat.headerMap || {};
+  const col = (row, logical) => {
+    const i = idx[map[logical] || logical];
+    return i == null || row[i] == null ? '' : String(row[i]).trim();
+  };
+
+  const out = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const ts = col(row, 'timestamp');
     if (!ts || ts.toLowerCase() === 'timestamp') continue;
-    const u = String(cell(r, C.url)).trim();
+    const u = col(row, 'url');
     if (!u) continue;
-    listOut.push({
+    out.push({
       timestamp: ts, time: Date.parse(ts) || 0,
-      source: String(cell(r, C.source)).trim(),
-      country: String(cell(r, C.country)).trim(),
-      brand: String(cell(r, C.brand)).trim() || 'Unknown',
-      model: String(cell(r, C.model)).trim(),
-      priceUsd: parsePrice(cell(r, C.price_usd)),
-      priceNis: parsePrice(cell(r, C.price_nis)),
+      source: col(row, 'source'),
+      country: col(row, 'country'),
+      brand: col(row, 'brand') || 'Unknown',
+      model: col(row, 'model'),
+      priceUsd: parsePrice(col(row, 'price_usd')),
+      priceNis: parsePrice(col(row, 'price_nis')),
       url: u,
-      image: String(cell(r, C.image_url)).trim(),
-      description: String(cell(r, C.description)).trim(),
-      condition: String(cell(r, C.condition)).trim(),
+      image: col(row, 'image_url'),
+      description: col(row, 'description'),
+      condition: col(row, 'condition'),
     });
   }
-  return listOut;
+  return out;
 }
 
 // ---- Render ----
