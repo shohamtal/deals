@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deals</title>
-  <meta name="description" content="Deals collected from around the world. Browse, filter and sort — starting with watches." />
+  <title>דילים</title>
+  <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -12,57 +12,66 @@
   <header class="site-header">
     <div class="header-inner">
       <div class="brand-block">
-        <h1>🏷️ Deals</h1>
-        <p class="tagline"><span id="catLabel">…</span> · <span id="totalCount">…</span> listings</p>
+        <h1 id="brandTitle">🏷️ דילים</h1>
+        <p class="tagline" id="tagline"></p>
       </div>
       <div class="header-right">
         <span class="header-status" id="headerStatus"></span>
-        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme"></button>
+
+        <div class="lang" id="lang">
+          <button type="button" class="lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false">🇮🇱</button>
+          <div class="lang-menu" role="menu">
+            <button type="button" data-lang="he" role="menuitem">🇮🇱 עברית</button>
+            <button type="button" data-lang="en" role="menuitem">🇺🇸 English</button>
+          </div>
+        </div>
+
+        <button type="button" id="themeToggle" class="theme-toggle" data-i18n-title="themeToggle" aria-label="Toggle theme"></button>
       </div>
     </div>
 
-    <nav class="tabs" id="tabs" aria-label="Deal categories"></nav>
+    <nav class="tabs" id="tabs" aria-label="Categories"></nav>
 
     <div class="filters" id="filters">
       <div class="filter-field grow">
-        <label for="q">Search</label>
-        <input type="search" id="q" placeholder="Brand, model, description…" autocomplete="off" />
+        <label for="q" data-i18n="searchLabel">Search</label>
+        <input type="search" id="q" data-i18n-ph="searchPlaceholder" autocomplete="off" />
       </div>
       <div class="filter-field">
-        <label>Brand</label>
-        <div class="ms" data-ms="brand" data-all="All brands"></div>
+        <label data-i18n="brandLabel">Brand</label>
+        <div class="ms" data-ms="brand"></div>
       </div>
       <div class="filter-field">
-        <label>Country</label>
-        <div class="ms" data-ms="country" data-all="All countries"></div>
+        <label data-i18n="countryLabel">Country</label>
+        <div class="ms" data-ms="country"></div>
       </div>
       <div class="filter-field">
-        <label>Source</label>
-        <div class="ms" data-ms="source" data-all="All sources"></div>
+        <label data-i18n="sourceLabel">Source</label>
+        <div class="ms" data-ms="source"></div>
       </div>
       <div class="filter-field">
-        <label for="condition">Condition</label>
-        <select id="condition"><option value="">Any condition</option></select>
+        <label for="condition" data-i18n="conditionLabel">Condition</label>
+        <select id="condition"><option value="" data-i18n="anyCondition">Any condition</option></select>
       </div>
       <div class="filter-field narrow">
-        <label for="minPrice">Min $</label>
+        <label for="minPrice" data-i18n="minPrice">Min $</label>
         <input type="number" id="minPrice" min="0" step="100" placeholder="0" inputmode="numeric" />
       </div>
       <div class="filter-field narrow">
-        <label for="maxPrice">Max $</label>
+        <label for="maxPrice" data-i18n="maxPrice">Max $</label>
         <input type="number" id="maxPrice" min="0" step="100" placeholder="∞" inputmode="numeric" />
       </div>
       <div class="filter-field">
-        <label for="sort">Sort by</label>
+        <label for="sort" data-i18n="sortLabel">Sort by</label>
         <select id="sort">
-          <option value="date_desc">Date · newest first</option>
-          <option value="date_asc">Date · oldest first</option>
-          <option value="price_asc">Price · low to high</option>
-          <option value="price_desc">Price · high to low</option>
-          <option value="brand_asc">Brand · A–Z</option>
+          <option value="date_desc" data-i18n="sort_date_desc">Date · newest first</option>
+          <option value="date_asc" data-i18n="sort_date_asc">Date · oldest first</option>
+          <option value="price_asc" data-i18n="sort_price_asc">Price · low to high</option>
+          <option value="price_desc" data-i18n="sort_price_desc">Price · high to low</option>
+          <option value="brand_asc" data-i18n="sort_brand_asc">Brand · A–Z</option>
         </select>
       </div>
-      <button type="button" id="reset" class="reset-btn" title="Clear all filters">Reset</button>
+      <button type="button" id="reset" class="reset-btn" data-i18n="reset" data-i18n-title="resetTitle">Reset</button>
     </div>
   </header>
 
@@ -70,22 +79,22 @@
     <div class="results-bar">
       <span id="resultsSummary" class="results-summary"></span>
       <span id="onlyWithPrice" class="chip-toggle">
-        <label><input type="checkbox" id="hasPriceChk" /> Only listings with a price</label>
+        <label><input type="checkbox" id="hasPriceChk" /> <span data-i18n="onlyPriced">Only listings with a price</span></label>
       </span>
     </div>
 
     <div id="grid" class="grid" aria-live="polite"></div>
 
     <div id="emptyState" class="empty-state" hidden>
-      <p>No listings match your filters.</p>
-      <button type="button" class="reset-btn" onclick="document.getElementById('reset').click()">Clear filters</button>
+      <p data-i18n="empty">No listings match your filters.</p>
+      <button type="button" class="reset-btn" data-i18n="clearFilters" onclick="document.getElementById('reset').click()">Clear filters</button>
     </div>
 
     <nav id="pagination" class="pagination" aria-label="Pagination"></nav>
   </main>
 
   <footer class="site-footer">
-    <p>Read-only view of a live Google Sheet · data refreshes on page load. Prices shown in USD and ₪ (NIS) only.</p>
+    <p data-i18n="footer"></p>
   </footer>
 
   <script src="app.js"></script>

@@ -90,6 +90,51 @@ body {
 }
 .theme-toggle:hover { border-color: var(--accent); transform: scale(1.05); }
 
+/* ---------- Language switcher ---------- */
+.lang { position: relative; }
+.lang-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 38px;
+  padding: 0 12px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: border-color .15s, transform .15s;
+}
+.lang-btn:hover { border-color: var(--accent); transform: scale(1.05); }
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 5px;
+  display: none;
+  z-index: 50;
+  min-width: 140px;
+}
+.lang.open .lang-menu { display: block; }
+.lang-menu button {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: .9rem;
+  padding: 8px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lang-menu button:hover { background: var(--bg); }
+.lang-menu button[aria-current="true"] { color: var(--accent); font-weight: 700; }
+
 /* ---------- Tabs ---------- */
 .tabs {
   max-width: var(--maxw);
@@ -195,10 +240,11 @@ body {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 9px;
-  padding: 8px 30px 8px 10px;
+  padding-block: 8px;
+  padding-inline: 10px 30px;
   font-size: .9rem;
   width: 100%;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -209,7 +255,7 @@ body {
 .ms-trigger::after {
   content: "▾";
   position: absolute;
-  right: 10px; top: 50%;
+  inset-inline-end: 10px; top: 50%;
   transform: translateY(-50%);
   color: var(--text-dim);
   font-size: .8rem;
@@ -222,7 +268,7 @@ body {
   position: absolute;
   z-index: 40;
   top: calc(100% + 4px);
-  left: 0;
+  inset-inline-start: 0;
   min-width: 100%;
   width: max-content;
   max-width: 320px;
@@ -258,7 +304,7 @@ body {
 }
 .ms-option:hover { background: var(--bg); }
 .ms-option input { accent-color: var(--accent-2); flex-shrink: 0; }
-.ms-option .ms-count { margin-left: auto; color: var(--text-faint); font-size: .78rem; }
+.ms-option .ms-count { margin-inline-start: auto; color: var(--text-faint); font-size: .78rem; }
 .ms-option.hidden { display: none; }
 .ms-empty { padding: 8px; color: var(--text-faint); font-size: .82rem; text-align: center; }
 .ms-foot {
@@ -347,13 +393,13 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
   color: var(--text-faint); font-size: 2.4rem;
 }
 .badge-condition {
-  position: absolute; top: 10px; left: 10px;
+  position: absolute; top: 10px; inset-inline-start: 10px;
   background: var(--badge-bg); color: #fff;
   font-size: .68rem; text-transform: uppercase; letter-spacing: .5px;
   padding: 4px 9px; border-radius: 999px; backdrop-filter: blur(4px);
 }
 .badge-country {
-  position: absolute; top: 10px; right: 10px;
+  position: absolute; top: 10px; inset-inline-end: 10px;
   background: var(--badge-bg); color: #fff;
   font-size: .72rem; padding: 4px 9px; border-radius: 999px; backdrop-filter: blur(4px);
 }

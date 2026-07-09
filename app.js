@@ -1,9 +1,9 @@
-/* Deals — frontend-only, read-only.
+/* Deals — frontend-only, read-only, bilingual (Hebrew default / English).
  * Reads public Google Sheet tabs via the gviz endpoint (plain GET, no auth,
  * no API key, no write scope). Nothing here can modify the sheet.
  *
- * Adding a new deal category later = add an entry to CATEGORIES below.
- * Each category maps to one sheet tab and its column layout. */
+ * Add a new deal category = add an entry to CATEGORIES (each maps to one sheet
+ * tab + its column layout). UI strings live in I18N. */
 
 'use strict';
 
@@ -11,7 +11,8 @@
 const CATEGORIES = [
   {
     id: 'watches',
-    label: '⌚ Watches',
+    icon: '⌚',
+    label: { he: 'שעונים', en: 'Watches' },
     sheetId: '1jbke0dmA01rr-eTtHJ7GHZK4ULVIXi3dlR1P9k5BUWc',
     gid: '0', // "watches" tab
     columns: {
@@ -20,14 +21,80 @@ const CATEGORIES = [
       description: 12, condition: 13,
     },
   },
-  // Example of a future tab — flip `comingSoon` off and fill in sheet/columns:
-  { id: 'cars', label: '🚗 Cars', comingSoon: true },
+  // Future tab — flip `comingSoon` off and fill in sheet/columns:
+  { id: 'cars', icon: '🚗', label: { he: 'מכוניות', en: 'Cars' }, comingSoon: true },
 ];
 
 const PAGE_SIZE = 50;
 const THEME_KEY = 'deals-theme';
+const LANG_KEY = 'deals-lang';
+
+// ---- Translations ----
+const I18N = {
+  he: {
+    dir: 'rtl', htmlLang: 'he', flag: '🇮🇱', docTitle: 'דילים', brand: 'דילים',
+    strings: {
+      searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
+      brandLabel: 'מותג', countryLabel: 'מדינה', sourceLabel: 'מקור', conditionLabel: 'מצב',
+      anyCondition: 'כל המצבים', minPrice: 'מ־$', maxPrice: 'עד $', sortLabel: 'מיון',
+      sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
+      sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
+      sort_brand_asc: 'מותג · א׳–ת׳',
+      reset: 'איפוס', resetTitle: 'ניקוי כל הסינונים',
+      themeToggle: 'החלפת מצב תצוגה',
+      onlyPriced: 'רק מודעות עם מחיר',
+      allBrands: 'כל המותגים', allCountries: 'כל המדינות', allSources: 'כל המקורות',
+      msFilter: 'סינון…', msNoMatches: 'אין התאמות', msClear: 'ניקוי',
+      msSelected: '{n} נבחרו',
+      results: 'מציג {a}–{b} מתוך {n} מודעות', listingsWord: 'מודעות',
+      empty: 'אין מודעות התואמות את הסינון.', clearFilters: 'ניקוי סינונים',
+      priceOnRequest: 'מחיר לפי פנייה', openListing: 'פתיחת המודעה ↗',
+      metaSource: 'מקור', metaCountry: 'מדינה', metaListed: 'פורסם',
+      prev: 'הקודם', next: 'הבא',
+      loading: 'טוען נתונים חיים…',
+      errTitle: 'לא ניתן לטעון את הנתונים.',
+      errBody: 'גיליון Google חייב להיות משותף כ״כל מי שיש לו הקישור · צופה״. נסו שוב בעוד רגע.',
+      footer: 'תצוגה לקריאה בלבד מתוך גיליון Google חי · הנתונים מתרעננים בכל טעינת עמוד. מחירים מוצגים בדולר ($) ובש״ח (₪) בלבד.',
+    },
+  },
+  en: {
+    dir: 'ltr', htmlLang: 'en', flag: '🇺🇸', docTitle: 'Deals', brand: 'Deals',
+    strings: {
+      searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
+      brandLabel: 'Brand', countryLabel: 'Country', sourceLabel: 'Source', conditionLabel: 'Condition',
+      anyCondition: 'Any condition', minPrice: 'Min $', maxPrice: 'Max $', sortLabel: 'Sort by',
+      sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
+      sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
+      sort_brand_asc: 'Brand · A–Z',
+      reset: 'Reset', resetTitle: 'Clear all filters',
+      themeToggle: 'Toggle light/dark theme',
+      onlyPriced: 'Only listings with a price',
+      allBrands: 'All brands', allCountries: 'All countries', allSources: 'All sources',
+      msFilter: 'Filter…', msNoMatches: 'No matches', msClear: 'Clear',
+      msSelected: '{n} selected',
+      results: 'Showing {a}–{b} of {n} listings', listingsWord: 'listings',
+      empty: 'No listings match your filters.', clearFilters: 'Clear filters',
+      priceOnRequest: 'Price on request', openListing: 'Open listing ↗',
+      metaSource: 'Source', metaCountry: 'Country', metaListed: 'Listed',
+      prev: '‹ Prev', next: 'Next ›',
+      loading: 'Loading live data…',
+      errTitle: "Couldn't load the data.",
+      errBody: 'The Google Sheet must be shared as “Anyone with the link · Viewer”. Please retry in a moment.',
+      footer: 'Read-only view of a live Google Sheet · data refreshes on page load. Prices shown in USD ($) and ₪ (NIS) only.',
+    },
+  },
+};
+
+// Data-value translations (small fixed sets). Proper nouns (brand/source/model) stay as-is.
+const VALUE_MAPS = {
+  he: {
+    country: { Israel: 'ישראל', Japan: 'יפן', Dubai: 'דובאי', France: 'צרפת', Cyprus: 'קפריסין', Greece: 'יוון' },
+    condition: { 'second-hand': 'יד שנייה', 'pre-owned': 'משומש' },
+  },
+};
 
 // ---- State ----
+let lang = 'he';
 let activeCat = CATEGORIES[0];
 let ALL = [];
 let VIEW = [];
@@ -43,7 +110,19 @@ const controls = {
 };
 const ms = {}; // multi-select filters: brand, country, source
 
-// ---- Theme (light is default) ----
+// ---- i18n helpers ----
+function dict() { return I18N[lang].strings; }
+function t(key, params) {
+  let s = dict()[key] || key;
+  if (params) for (const k in params) s = s.replace(`{${k}}`, params[k]);
+  return s;
+}
+function displayVal(kind, raw) {
+  const m = VALUE_MAPS[lang] && VALUE_MAPS[lang][kind];
+  return (m && m[raw]) || raw;
+}
+
+// ---- Theme (light default) ----
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   try { localStorage.setItem(THEME_KEY, theme); } catch (_) {}
@@ -52,27 +131,25 @@ function applyTheme(theme) {
 function initTheme() {
   let saved = 'light';
   try { saved = localStorage.getItem(THEME_KEY) || 'light'; } catch (_) {}
-  applyTheme(saved === 'dark' ? 'dark' : 'light'); // default light
+  applyTheme(saved === 'dark' ? 'dark' : 'light');
   el('themeToggle').addEventListener('click', () => {
     const cur = document.documentElement.getAttribute('data-theme');
     applyTheme(cur === 'dark' ? 'light' : 'dark');
   });
 }
 
-// ---- Helpers ----
+// ---- Formatting ----
 function parsePrice(raw) {
   if (raw === null || raw === undefined) return null;
   const n = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
   return Number.isFinite(n) && n > 0 ? n : null;
 }
-
 const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const fmtNIS = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 });
-
 function fmtDate(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return '';
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function escapeHtml(s) {
@@ -80,26 +157,26 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-
-// Only allow http(s) URLs into href/src — blocks javascript:/data: injection
-// from the (user-controlled, but still untrusted) sheet cells.
+// Only allow http(s) into href/src — blocks javascript:/data: from sheet cells.
 function safeUrl(u) {
   const s = String(u || '').trim();
   return /^https?:\/\//i.test(s) ? s : '';
 }
 
 // ---- Multi-select dropdown (checkboxes + search) ----
-function createMultiSelect(mount, { allLabel, onChange }) {
+function createMultiSelect(mount, { allLabel, texts, onChange }) {
   const selected = new Set();
-  let options = []; // [{value, count}]
+  let options = [];          // [{value, count, label}]
+  let labelByValue = new Map();
+  const state = { allLabel, texts };
 
   mount.innerHTML = `
-    <button type="button" class="ms-trigger">${escapeHtml(allLabel)}</button>
+    <button type="button" class="ms-trigger"></button>
     <div class="ms-panel" role="listbox" aria-multiselectable="true">
-      <input type="text" class="ms-search" placeholder="Filter…" autocomplete="off" />
+      <input type="text" class="ms-search" autocomplete="off" />
       <div class="ms-list"></div>
-      <div class="ms-empty" hidden>No matches</div>
-      <div class="ms-foot"><button type="button" class="ms-clear">Clear</button></div>
+      <div class="ms-empty" hidden></div>
+      <div class="ms-foot"><button type="button" class="ms-clear"></button></div>
     </div>`;
   const trigger = mount.querySelector('.ms-trigger');
   const panel = mount.querySelector('.ms-panel');
@@ -110,17 +187,21 @@ function createMultiSelect(mount, { allLabel, onChange }) {
 
   function updateTrigger() {
     const n = selected.size;
-    if (n === 0) { trigger.textContent = allLabel; trigger.classList.remove('has-sel'); }
-    else if (n === 1) { trigger.textContent = [...selected][0]; trigger.classList.add('has-sel'); }
-    else { trigger.textContent = `${n} selected`; trigger.classList.add('has-sel'); }
+    if (n === 0) { trigger.textContent = state.allLabel; trigger.classList.remove('has-sel'); }
+    else if (n === 1) { trigger.textContent = labelByValue.get([...selected][0]) || [...selected][0]; trigger.classList.add('has-sel'); }
+    else { trigger.textContent = state.texts.selected.replace('{n}', n); trigger.classList.add('has-sel'); }
   }
-
+  function applyStaticTexts() {
+    search.placeholder = state.texts.filter;
+    empty.textContent = state.texts.noMatches;
+    clearBtn.textContent = state.texts.clear;
+  }
   function renderList() {
     const q = search.value.trim().toLowerCase();
     list.innerHTML = '';
     let shown = 0;
     options.forEach((opt) => {
-      if (q && !opt.value.toLowerCase().includes(q)) return;
+      if (q && !opt.label.toLowerCase().includes(q)) return;
       shown++;
       const id = 'ms-' + Math.random().toString(36).slice(2, 9);
       const row = document.createElement('label');
@@ -128,7 +209,7 @@ function createMultiSelect(mount, { allLabel, onChange }) {
       row.htmlFor = id;
       row.innerHTML = `<input type="checkbox" id="${id}"${selected.has(opt.value) ? ' checked' : ''} />
         <span class="ms-label"></span><span class="ms-count">${opt.count}</span>`;
-      row.querySelector('.ms-label').textContent = opt.value;
+      row.querySelector('.ms-label').textContent = opt.label;
       row.querySelector('input').addEventListener('change', (e) => {
         if (e.target.checked) selected.add(opt.value); else selected.delete(opt.value);
         updateTrigger();
@@ -138,7 +219,6 @@ function createMultiSelect(mount, { allLabel, onChange }) {
     });
     empty.hidden = shown !== 0;
   }
-
   function open() {
     document.querySelectorAll('.ms.open').forEach((m) => { if (m !== mount) m.classList.remove('open'); });
     mount.classList.add('open');
@@ -148,74 +228,50 @@ function createMultiSelect(mount, { allLabel, onChange }) {
   }
   function close() { mount.classList.remove('open'); }
 
-  trigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-    mount.classList.contains('open') ? close() : open();
-  });
+  trigger.addEventListener('click', (e) => { e.stopPropagation(); mount.classList.contains('open') ? close() : open(); });
   search.addEventListener('input', renderList);
   search.addEventListener('click', (e) => e.stopPropagation());
   panel.addEventListener('click', (e) => e.stopPropagation());
   clearBtn.addEventListener('click', () => { selected.clear(); updateTrigger(); renderList(); onChange(); });
   mount.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); trigger.focus(); } });
 
+  applyStaticTexts();
+  updateTrigger();
+
   return {
-    setOptions(items) { options = items; renderList(); },
+    setOptions(items) {
+      options = items;
+      labelByValue = new Map(items.map((o) => [o.value, o.label]));
+      renderList(); updateTrigger();
+    },
     getSelected() { return [...selected]; },
     setSelected(arr) { selected.clear(); (arr || []).forEach((v) => selected.add(v)); updateTrigger(); renderList(); },
     clear() { selected.clear(); updateTrigger(); renderList(); },
+    refreshTexts({ allLabel, texts }) { state.allLabel = allLabel; state.texts = texts; applyStaticTexts(); updateTrigger(); },
   };
 }
 
+const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources' };
+function msTexts() {
+  return { filter: t('msFilter'), noMatches: t('msNoMatches'), clear: t('msClear'), selected: t('msSelected') };
+}
 function setupMultiSelects() {
   const apply = () => applyFilters();
   document.querySelectorAll('.ms[data-ms]').forEach((mount) => {
-    ms[mount.dataset.ms] = createMultiSelect(mount, { allLabel: mount.dataset.all || 'All', onChange: apply });
+    const key = mount.dataset.ms;
+    ms[key] = createMultiSelect(mount, { allLabel: t(MS_ALL_KEY[key]), texts: msTexts(), onChange: apply });
   });
-  // Close any open panel when clicking elsewhere.
   document.addEventListener('click', () => {
     document.querySelectorAll('.ms.open').forEach((m) => m.classList.remove('open'));
+    el('lang').classList.remove('open');
   });
 }
 
-// ---- Fetch & parse gviz (LIVE, never cached) ----
-async function loadData(cat) {
-  const base = `https://docs.google.com/spreadsheets/d/${cat.sheetId}/gviz/tq?tqx=out:json&gid=${cat.gid}`;
-  // cache: 'no-store' + a cache-buster param guarantee fresh rows on every load.
-  const url = `${base}&_=${Date.now()}`;
-  const res = await fetch(url, { method: 'GET', cache: 'no-store' });
-  if (!res.ok) throw new Error(`Sheet request failed (HTTP ${res.status})`);
-  const text = await res.text();
-  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-  const rows = json.table.rows || [];
-  const C = cat.columns;
-
-  const cell = (r, i) => {
-    const c = r.c && r.c[i];
-    return c && c.v !== null && c.v !== undefined ? c.v : '';
-  };
-
-  const list = [];
-  for (const r of rows) {
-    const ts = String(cell(r, C.timestamp)).trim();
-    if (!ts || ts.toLowerCase() === 'timestamp') continue; // skip header / blanks
-    const url2 = String(cell(r, C.url)).trim();
-    if (!url2) continue;
-    list.push({
-      timestamp: ts,
-      time: Date.parse(ts) || 0,
-      source: String(cell(r, C.source)).trim(),
-      country: String(cell(r, C.country)).trim(),
-      brand: String(cell(r, C.brand)).trim() || 'Unknown',
-      model: String(cell(r, C.model)).trim(),
-      priceUsd: parsePrice(cell(r, C.price_usd)),
-      priceNis: parsePrice(cell(r, C.price_nis)),
-      url: url2,
-      image: String(cell(r, C.image_url)).trim(),
-      description: String(cell(r, C.description)).trim(),
-      condition: String(cell(r, C.condition)).trim(),
-    });
-  }
-  return list;
+// ---- Static text application ----
+function applyStaticI18n() {
+  document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach((n) => { n.placeholder = t(n.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-title]').forEach((n) => { n.title = t(n.dataset.i18nTitle); });
 }
 
 // ---- Tabs ----
@@ -228,12 +284,21 @@ function renderTabs() {
     b.className = 'tab' + (cat.comingSoon ? ' disabled' : '');
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', String(cat.id === activeCat.id && !cat.comingSoon));
-    b.innerHTML = escapeHtml(cat.label) + (cat.comingSoon ? '<span class="soon">soon</span>' : '');
-    if (!cat.comingSoon) {
+    b.textContent = `${cat.icon} ${cat.label[lang]}`;
+    if (cat.comingSoon) {
+      const s = document.createElement('span');
+      s.className = 'soon';
+      s.textContent = lang === 'he' ? 'בקרוב' : 'soon';
+      b.appendChild(s);
+    } else {
       b.addEventListener('click', () => { if (cat.id !== activeCat.id) switchCategory(cat); });
     }
     nav.appendChild(b);
   });
+}
+
+function updateTagline() {
+  el('tagline').textContent = `${activeCat.icon} ${activeCat.label[lang]} · ${ALL.length.toLocaleString()} ${t('listingsWord')}`;
 }
 
 async function switchCategory(cat) {
@@ -244,37 +309,38 @@ async function switchCategory(cat) {
   controls.hasPrice.checked = false;
   ['brand', 'country', 'source'].forEach((k) => ms[k] && ms[k].clear());
   renderTabs();
-  el('catLabel').textContent = cat.label;
   await loadActive();
 }
 
-// ---- Filter dropdown population ----
-function fillSelect(select, values) {
-  const first = select.querySelector('option');
+// ---- Filter option population ----
+function fillSelect(select, items) {
+  const first = select.querySelector('option'); // keep placeholder
   select.innerHTML = '';
   if (first) select.appendChild(first);
-  values.forEach((v) => {
+  items.forEach(({ value, label }) => {
     const o = document.createElement('option');
-    o.value = v; o.textContent = v;
+    o.value = value; o.textContent = label;
     select.appendChild(o);
   });
 }
 
 function buildFilters() {
-  // value -> count, sorted by count desc then name, for each key.
   const counted = (key) => {
     const m = new Map();
     ALL.forEach((x) => { const v = x[key]; if (v) m.set(v, (m.get(v) || 0) + 1); });
-    return [...m.entries()]
-      .map(([value, count]) => ({ value, count }))
-      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   };
-  ms.brand.setOptions(counted('brand'));
-  ms.country.setOptions(counted('country'));
-  ms.source.setOptions(counted('source'));
+  const toOpts = (key, translateKind) => counted(key).map(([value, count]) => ({
+    value, count, label: translateKind ? displayVal(translateKind, value) : value,
+  }));
 
-  const uniq = (key) => [...new Set(ALL.map((x) => x[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  fillSelect(controls.condition, uniq('condition'));
+  ms.brand.setOptions(toOpts('brand'));
+  ms.country.setOptions(toOpts('country', 'country'));
+  ms.source.setOptions(toOpts('source'));
+
+  const condVal = controls.condition.value;
+  fillSelect(controls.condition, counted('condition').map(([value]) => ({ value, label: displayVal('condition', value) })));
+  controls.condition.value = condVal;
 }
 
 // ---- Filtering + sorting ----
@@ -311,7 +377,7 @@ function applyFilters() {
 
 function sortView() {
   const mode = controls.sort.value;
-  const priceKey = (w) => (w.priceUsd == null ? Infinity : w.priceUsd); // missing prices last
+  const priceKey = (w) => (w.priceUsd == null ? Infinity : w.priceUsd);
   const cmp = {
     date_desc: (a, b) => b.time - a.time,
     date_asc: (a, b) => a.time - b.time,
@@ -320,6 +386,41 @@ function sortView() {
     brand_asc: (a, b) => a.brand.localeCompare(b.brand) || b.time - a.time,
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
+}
+
+// ---- Fetch & parse gviz (LIVE, never cached) ----
+async function loadData(cat) {
+  const base = `https://docs.google.com/spreadsheets/d/${cat.sheetId}/gviz/tq?tqx=out:json&gid=${cat.gid}`;
+  const url = `${base}&_=${Date.now()}`; // cache-buster; paired with cache:no-store below
+  const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+  if (!res.ok) throw new Error(`Sheet request failed (HTTP ${res.status})`);
+  const text = await res.text();
+  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  const rows = json.table.rows || [];
+  const C = cat.columns;
+  const cell = (r, i) => { const c = r.c && r.c[i]; return c && c.v !== null && c.v !== undefined ? c.v : ''; };
+
+  const listOut = [];
+  for (const r of rows) {
+    const ts = String(cell(r, C.timestamp)).trim();
+    if (!ts || ts.toLowerCase() === 'timestamp') continue;
+    const u = String(cell(r, C.url)).trim();
+    if (!u) continue;
+    listOut.push({
+      timestamp: ts, time: Date.parse(ts) || 0,
+      source: String(cell(r, C.source)).trim(),
+      country: String(cell(r, C.country)).trim(),
+      brand: String(cell(r, C.brand)).trim() || 'Unknown',
+      model: String(cell(r, C.model)).trim(),
+      priceUsd: parsePrice(cell(r, C.price_usd)),
+      priceNis: parsePrice(cell(r, C.price_nis)),
+      url: u,
+      image: String(cell(r, C.image_url)).trim(),
+      description: String(cell(r, C.description)).trim(),
+      condition: String(cell(r, C.condition)).trim(),
+    });
+  }
+  return listOut;
 }
 
 // ---- Render ----
@@ -336,10 +437,10 @@ function cardHtml(w) {
   if (w.priceNis != null) prices.push(`<span class="price nis">${fmtNIS.format(w.priceNis)}</span>`);
   const priceBlock = prices.length
     ? `<div class="price-row">${prices.join('')}</div>`
-    : `<div class="price-row"><span class="price-none">Price on request</span></div>`;
+    : `<div class="price-row"><span class="price-none">${escapeHtml(t('priceOnRequest'))}</span></div>`;
 
-  const condBadge = w.condition ? `<span class="badge-condition">${escapeHtml(w.condition)}</span>` : '';
-  const countryBadge = w.country ? `<span class="badge-country">${escapeHtml(w.country)}</span>` : '';
+  const condBadge = w.condition ? `<span class="badge-condition">${escapeHtml(displayVal('condition', w.condition))}</span>` : '';
+  const countryBadge = w.country ? `<span class="badge-country">${escapeHtml(displayVal('country', w.country))}</span>` : '';
   const desc = w.description && w.description.toLowerCase() !== (w.brand + ' ' + w.model).toLowerCase()
     ? `<div class="desc">${escapeHtml(w.description)}</div>` : '';
 
@@ -348,21 +449,17 @@ function cardHtml(w) {
 
   return `
   <${cardTag} class="card"${hrefAttr}>
-    <div class="card-img-wrap">
-      ${img}
-      ${condBadge}
-      ${countryBadge}
-    </div>
+    <div class="card-img-wrap">${img}${condBadge}${countryBadge}</div>
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(w.brand)}</span></div>
       <div class="card-model">${escapeHtml(w.model || '—')}</div>
       ${priceBlock}
       ${desc}
       <div class="card-meta">
-        <div class="row"><span class="label">Source</span><span class="val">${escapeHtml(w.source || '—')}</span></div>
-        <div class="row"><span class="label">Country</span><span class="val">${escapeHtml(w.country || '—')}</span></div>
-        <div class="row"><span class="label">Listed</span><span class="val">${escapeHtml(fmtDate(w.timestamp))}</span></div>
-        <div class="open-hint">Open listing ↗</div>
+        <div class="row"><span class="label">${escapeHtml(t('metaSource'))}</span><span class="val">${escapeHtml(w.source || '—')}</span></div>
+        <div class="row"><span class="label">${escapeHtml(t('metaCountry'))}</span><span class="val">${escapeHtml(displayVal('country', w.country) || '—')}</span></div>
+        <div class="row"><span class="label">${escapeHtml(t('metaListed'))}</span><span class="val">${escapeHtml(fmtDate(w.timestamp))}</span></div>
+        <div class="open-hint">${escapeHtml(t('openListing'))}</div>
       </div>
     </div>
   </${cardTag}>`;
@@ -379,7 +476,7 @@ function render() {
   grid.innerHTML = slice.map(cardHtml).join('');
 
   el('resultsSummary').textContent = total
-    ? `Showing ${start + 1}–${start + slice.length} of ${total.toLocaleString()} listings`
+    ? t('results', { a: start + 1, b: start + slice.length, n: total.toLocaleString() })
     : '';
 
   renderPagination(pages);
@@ -389,14 +486,12 @@ function render() {
 function renderPagination(pages) {
   const nav = el('pagination');
   if (pages <= 1) { nav.innerHTML = ''; return; }
-
   const btn = (label, p, opts = {}) => {
     const cur = opts.current ? ' aria-current="true"' : '';
     const dis = opts.disabled ? ' disabled' : '';
-    return `<button type="button" data-page="${p}"${cur}${dis}>${label}</button>`;
+    return `<button type="button" data-page="${p}"${cur}${dis}>${escapeHtml(label)}</button>`;
   };
-
-  const parts = [btn('‹ Prev', page - 1, { disabled: page === 1 })];
+  const parts = [btn(t('prev'), page - 1, { disabled: page === 1 })];
   const nums = new Set([1, pages, page, page - 1, page + 1, page - 2, page + 2]);
   let last = 0;
   [...nums].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b).forEach((n) => {
@@ -404,9 +499,8 @@ function renderPagination(pages) {
     parts.push(btn(String(n), n, { current: n === page }));
     last = n;
   });
-  parts.push(btn('Next ›', page + 1, { disabled: page === pages }));
+  parts.push(btn(t('next'), page + 1, { disabled: page === pages }));
   nav.innerHTML = parts.join('');
-
   nav.querySelectorAll('button[data-page]').forEach((b) => {
     b.addEventListener('click', () => {
       const p = parseInt(b.dataset.page, 10);
@@ -415,9 +509,10 @@ function renderPagination(pages) {
   });
 }
 
-// ---- URL state (shareable / survives refresh) ----
+// ---- URL state ----
 function syncUrl() {
   const p = new URLSearchParams();
+  if (lang !== 'he') p.set('lang', lang);
   if (activeCat.id !== CATEGORIES[0].id) p.set('cat', activeCat.id);
   if (controls.q.value.trim()) p.set('q', controls.q.value.trim());
   ms.brand.getSelected().forEach((v) => p.append('brand', v));
@@ -449,10 +544,51 @@ function restoreFromUrl() {
   if (pg > 0) page = pg;
 }
 
+// ---- Language ----
+function setLanguage(l, { rerender = true } = {}) {
+  lang = I18N[l] ? l : 'he';
+  try { localStorage.setItem(LANG_KEY, lang); } catch (_) {}
+  const conf = I18N[lang];
+  document.documentElement.lang = conf.htmlLang;
+  document.documentElement.dir = conf.dir;
+  document.title = conf.docTitle;
+  el('brandTitle').textContent = `🏷️ ${conf.brand}`;
+  el('langBtn').textContent = conf.flag;
+  document.querySelectorAll('.lang-menu [data-lang]').forEach((b) =>
+    b.setAttribute('aria-current', String(b.dataset.lang === lang)));
+
+  applyStaticI18n();
+  Object.keys(ms).forEach((k) => ms[k].refreshTexts({ allLabel: t(MS_ALL_KEY[k]), texts: msTexts() }));
+  renderTabs();
+
+  if (rerender && ALL.length) {
+    buildFilters();      // re-translate option labels (selections preserved by value)
+    updateTagline();
+    render();            // re-render grid + summary + pagination in new language
+    syncUrl();
+  }
+}
+
+function setupLang() {
+  const langEl = el('lang');
+  el('langBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    langEl.classList.toggle('open');
+    el('langBtn').setAttribute('aria-expanded', String(langEl.classList.contains('open')));
+  });
+  langEl.querySelector('.lang-menu').addEventListener('click', (e) => e.stopPropagation());
+  langEl.querySelectorAll('[data-lang]').forEach((b) => {
+    b.addEventListener('click', () => {
+      langEl.classList.remove('open');
+      if (b.dataset.lang !== lang) setLanguage(b.dataset.lang);
+    });
+  });
+}
+
 // ---- Wire up ----
 function bindEvents() {
-  let t;
-  const debounced = () => { clearTimeout(t); t = setTimeout(applyFilters, 200); };
+  let tm;
+  const debounced = () => { clearTimeout(tm); tm = setTimeout(applyFilters, 200); };
   controls.q.addEventListener('input', debounced);
   controls.minPrice.addEventListener('input', debounced);
   controls.maxPrice.addEventListener('input', debounced);
@@ -484,24 +620,22 @@ function showSkeletons() {
 async function loadActive() {
   showSkeletons();
   el('pagination').innerHTML = '';
-  el('headerStatus').textContent = 'Loading live data…';
+  el('headerStatus').textContent = t('loading');
   const savedPage = page;
   try {
     ALL = await loadData(activeCat);
     buildFilters();
-    restoreFromUrl(); // re-apply once dropdown options exist
+    restoreFromUrl();
     page = savedPage;
-    el('totalCount').textContent = ALL.length.toLocaleString();
     el('headerStatus').textContent = '';
+    updateTagline();
     applyFilters();
     if (savedPage > 1) { page = savedPage; render(); }
   } catch (err) {
     console.error(err);
     el('headerStatus').textContent = '';
     grid.innerHTML = `<div class="error-box">
-      <strong>Couldn't load the data.</strong><br>
-      ${escapeHtml(err.message)}<br><br>
-      The Google Sheet must be shared as “Anyone with the link · Viewer”. Please retry in a moment.
+      <strong>${escapeHtml(t('errTitle'))}</strong><br>${escapeHtml(err.message)}<br><br>${escapeHtml(t('errBody'))}
     </div>`;
     el('pagination').innerHTML = '';
   }
@@ -510,15 +644,19 @@ async function loadActive() {
 function init() {
   initTheme();
   setupMultiSelects();
+  setupLang();
   bindEvents();
 
-  // Pick active category from URL (?cat=), default to the first real tab.
   const p = new URLSearchParams(location.search);
-  const wanted = CATEGORIES.find((c) => c.id === p.get('cat') && !c.comingSoon);
-  if (wanted) activeCat = wanted;
+  // language: URL > stored > default he
+  let startLang = 'he';
+  try { startLang = localStorage.getItem(LANG_KEY) || 'he'; } catch (_) {}
+  if (p.get('lang') && I18N[p.get('lang')]) startLang = p.get('lang');
 
-  renderTabs();
-  el('catLabel').textContent = activeCat.label;
+  const wantedCat = CATEGORIES.find((c) => c.id === p.get('cat') && !c.comingSoon);
+  if (wantedCat) activeCat = wantedCat;
+
+  setLanguage(startLang, { rerender: false }); // sets dir/lang/static text before data
   restoreFromUrl();
   loadActive();
 }
