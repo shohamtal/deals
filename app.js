@@ -34,7 +34,7 @@ const I18N = {
     strings: {
       searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
       brandLabel: 'מותג', countryLabel: 'מדינה', sourceLabel: 'מקור', conditionLabel: 'מצב',
-      anyCondition: 'כל המצבים', minPrice: 'מ־$', maxPrice: 'עד $', sortLabel: 'מיון',
+      anyCondition: 'כל המצבים', minPrice: 'מ־₪', maxPrice: 'עד ₪', sortLabel: 'מיון',
       sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
       sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
       sort_brand_asc: 'מותג · א׳–ת׳',
@@ -60,7 +60,7 @@ const I18N = {
     strings: {
       searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
       brandLabel: 'Brand', countryLabel: 'Country', sourceLabel: 'Source', conditionLabel: 'Condition',
-      anyCondition: 'Any condition', minPrice: 'Min $', maxPrice: 'Max $', sortLabel: 'Sort by',
+      anyCondition: 'Any condition', minPrice: 'Min ₪', maxPrice: 'Max ₪', sortLabel: 'Sort by',
       sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
       sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
       sort_brand_asc: 'Brand · A–Z',
@@ -384,8 +384,8 @@ function applyFilters() {
     if (sourceSet.size && !sourceSet.has(w.source)) return false;
     if (condition && w.condition !== condition) return false;
     if (onlyPriced && w.priceUsd == null && w.priceNis == null) return false;
-    if (min != null && !(w.priceUsd != null && w.priceUsd >= min)) return false;
-    if (max != null && !(w.priceUsd != null && w.priceUsd <= max)) return false;
+    if (min != null && !(w.priceNis != null && w.priceNis >= min)) return false;
+    if (max != null && !(w.priceNis != null && w.priceNis <= max)) return false;
     if (q) {
       const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -401,12 +401,12 @@ function applyFilters() {
 
 function sortView() {
   const mode = controls.sort.value;
-  const priceKey = (w) => (w.priceUsd == null ? Infinity : w.priceUsd);
+  const priceKey = (w) => (w.priceNis == null ? Infinity : w.priceNis); // sort by NIS, missing last
   const cmp = {
     date_desc: (a, b) => b.time - a.time,
     date_asc: (a, b) => a.time - b.time,
     price_asc: (a, b) => priceKey(a) - priceKey(b),
-    price_desc: (a, b) => (b.priceUsd ?? -Infinity) - (a.priceUsd ?? -Infinity),
+    price_desc: (a, b) => (b.priceNis ?? -Infinity) - (a.priceNis ?? -Infinity),
     brand_asc: (a, b) => a.brand.localeCompare(b.brand) || b.time - a.time,
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
