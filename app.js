@@ -26,6 +26,8 @@ const CATEGORIES = [
 const PAGE_SIZE = 50;
 const THEME_KEY = 'deals-theme';
 const LANG_KEY = 'deals-lang';
+const SAVED_KEY = 'deals-saved-searches';
+const SAVED_MAX = 20;
 
 // ---- Translations ----
 const I18N = {
@@ -34,6 +36,11 @@ const I18N = {
     strings: {
       searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
       excludeLabel: 'לא כולל', excludePlaceholder: 'מילים להחרגה (מופרדות בפסיק)…',
+      savedBtn: '★ שמורים', savedNamePh: 'שם החיפוש', savedAdd: 'שמירה',
+      savedEmpty: 'אין חיפושים שמורים', savedDefault: 'חיפוש',
+      savedMax: 'הגעת ל‑20 חיפושים. מחקו אחד כדי לשמור חדש.',
+      savedNoFilters: 'לא הוגדר סינון לשמירה.',
+      savedDelConfirm: 'למחוק את החיפוש השמור?',
       brandLabel: 'מותג', countryLabel: 'מדינה', sourceLabel: 'מקור', conditionLabel: 'מצב',
       anyCondition: 'כל המצבים', minPrice: 'מ־₪', maxPrice: 'עד ₪', sortLabel: 'מיון',
       sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
@@ -61,6 +68,11 @@ const I18N = {
     strings: {
       searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
       excludeLabel: 'Exclude', excludePlaceholder: 'Words to exclude (comma-separated)…',
+      savedBtn: '★ Saved', savedNamePh: 'Search name', savedAdd: 'Save',
+      savedEmpty: 'No saved searches', savedDefault: 'Search',
+      savedMax: 'Reached 20 searches. Delete one to save a new one.',
+      savedNoFilters: 'Set a filter before saving.',
+      savedDelConfirm: 'Delete this saved search?',
       brandLabel: 'Brand', countryLabel: 'Country', sourceLabel: 'Source', conditionLabel: 'Condition',
       anyCondition: 'Any condition', minPrice: 'Min ₪', maxPrice: 'Max ₪', sortLabel: 'Sort by',
       sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
@@ -290,6 +302,7 @@ function setupMultiSelects() {
   document.addEventListener('click', () => {
     document.querySelectorAll('.ms.open').forEach((m) => m.classList.remove('open'));
     el('lang').classList.remove('open');
+    el('saved').classList.remove('open');
   });
 }
 
@@ -624,6 +637,138 @@ function setupLang() {
   });
 }
 
+// ---- Saved searches (localStorage, up to SAVED_MAX) ----
+// A saved search is the current filter state serialized as a query string
+// (lang/cat/page excluded — those aren't part of "the search").
+function currentFilterQuery() {
+  const p = new URLSearchParams();
+  if (controls.q.value.trim()) p.set('q', controls.q.value.trim());
+  if (controls.qx.value.trim()) p.set('qx', controls.qx.value.trim());
+  ms.brand.getSelected().forEach((v) => p.append('brand', v));
+  ms.country.getSelected().forEach((v) => p.append('country', v));
+  ms.source.getSelected().forEach((v) => p.append('source', v));
+  if (controls.condition.value) p.set('condition', controls.condition.value);
+  if (controls.minPrice.value) p.set('min', controls.minPrice.value);
+  if (controls.maxPrice.value) p.set('max', controls.maxPrice.value);
+  if (controls.sort.value !== 'date_desc') p.set('sort', controls.sort.value);
+  if (controls.hasPrice.checked) p.set('priced', '1');
+  return p.toString();
+}
+
+function applyFilterQuery(qs) {
+  const p = new URLSearchParams(qs);
+  controls.q.value = p.get('q') || '';
+  controls.qx.value = p.get('qx') || '';
+  ms.brand.setSelected(p.getAll('brand'));
+  ms.country.setSelected(p.getAll('country'));
+  ms.source.setSelected(p.getAll('source'));
+  controls.condition.value = p.get('condition') || '';
+  controls.minPrice.value = p.get('min') || '';
+  controls.maxPrice.value = p.get('max') || '';
+  controls.sort.value = p.get('sort') || 'date_desc';
+  controls.hasPrice.checked = p.get('priced') === '1';
+  applyFilters();
+}
+
+// Human summary of a saved query, for the list subtitle.
+function describeQuery(qs) {
+  const p = new URLSearchParams(qs);
+  const parts = [];
+  const b = p.getAll('brand'); if (b.length) parts.push(b.join(', '));
+  const c = p.getAll('country'); if (c.length) parts.push(c.map((x) => displayVal('country', x)).join(', '));
+  const s = p.getAll('source'); if (s.length) parts.push(s.join(', '));
+  if (p.get('condition')) parts.push(displayVal('condition', p.get('condition')));
+  if (p.get('q')) parts.push('“' + p.get('q') + '”');
+  if (p.get('qx')) parts.push('−' + p.get('qx'));
+  if (p.get('min') || p.get('max')) parts.push('₪' + (p.get('min') || '0') + '–' + (p.get('max') || '∞'));
+  return parts.join(' · ');
+}
+
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY)) || []; } catch (_) { return []; }
+}
+function storeSaved(arr) {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(arr)); } catch (_) {}
+}
+
+function renderSavedList() {
+  const list = el('savedList');
+  const items = loadSaved();
+  el('savedEmpty').hidden = items.length !== 0;
+  list.innerHTML = '';
+  items.forEach((it, i) => {
+    const sub = describeQuery(it.query);
+    const row = document.createElement('div');
+    row.className = 'saved-item';
+    row.innerHTML = `<button type="button" class="saved-apply">
+        <span class="saved-item-name"></span>
+        ${sub ? '<span class="saved-item-sub"></span>' : ''}
+      </button>
+      <button type="button" class="saved-del" aria-label="delete">×</button>`;
+    row.querySelector('.saved-item-name').textContent = it.name;
+    if (sub) row.querySelector('.saved-item-sub').textContent = sub;
+    row.querySelector('.saved-apply').addEventListener('click', () => {
+      applyFilterQuery(it.query);
+      el('saved').classList.remove('open');
+    });
+    row.querySelector('.saved-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!window.confirm(t('savedDelConfirm'))) return;
+      const arr = loadSaved(); arr.splice(i, 1); storeSaved(arr);
+      renderSavedList(); updateSavedControls();
+    });
+    list.appendChild(row);
+  });
+}
+
+function updateSavedControls() {
+  const n = loadSaved().length;
+  const note = el('savedNote');
+  const add = el('savedAdd');
+  if (n >= SAVED_MAX) {
+    note.hidden = false; note.textContent = t('savedMax'); note.classList.add('warn');
+    add.disabled = true;
+  } else {
+    note.hidden = true; note.classList.remove('warn');
+    add.disabled = false;
+  }
+}
+
+function setupSaved() {
+  const savedEl = el('saved');
+  const nameInput = el('savedName');
+
+  el('savedBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const opening = !savedEl.classList.contains('open');
+    savedEl.classList.toggle('open');
+    el('savedBtn').setAttribute('aria-expanded', String(opening));
+    if (opening) {
+      // prefill a sensible default name from the current filters
+      const desc = describeQuery(currentFilterQuery());
+      nameInput.value = desc || `${t('savedDefault')} ${loadSaved().length + 1}`;
+      renderSavedList();
+      updateSavedControls();
+      nameInput.focus(); nameInput.select();
+    }
+  });
+  savedEl.querySelector('.saved-menu').addEventListener('click', (e) => e.stopPropagation());
+
+  const doSave = () => {
+    const query = currentFilterQuery();
+    if (!query) { const nt = el('savedNote'); nt.hidden = false; nt.textContent = t('savedNoFilters'); nt.classList.remove('warn'); return; }
+    const arr = loadSaved();
+    if (arr.length >= SAVED_MAX) { updateSavedControls(); return; }
+    const name = (nameInput.value.trim()) || `${t('savedDefault')} ${arr.length + 1}`;
+    arr.push({ name, query });
+    storeSaved(arr);
+    renderSavedList(); updateSavedControls();
+    nameInput.value = '';
+  };
+  el('savedAdd').addEventListener('click', doSave);
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); });
+}
+
 // ---- Wire up ----
 function bindEvents() {
   let tm;
@@ -686,6 +831,7 @@ function init() {
   initTheme();
   setupMultiSelects();
   setupLang();
+  setupSaved();
   bindEvents();
 
   const p = new URLSearchParams(location.search);

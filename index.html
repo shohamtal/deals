@@ -6,7 +6,7 @@
   <title>דילים</title>
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <header class="site-header">
@@ -75,6 +75,18 @@
           <option value="brand_asc" data-i18n="sort_brand_asc">Brand · A–Z</option>
         </select>
       </div>
+      <div class="saved" id="saved">
+        <button type="button" class="saved-btn" id="savedBtn" data-i18n="savedBtn" aria-haspopup="true" aria-expanded="false">Saved</button>
+        <div class="saved-menu" role="menu">
+          <div class="saved-new">
+            <input type="text" class="saved-name" id="savedName" data-i18n-ph="savedNamePh" autocomplete="off" maxlength="60" />
+            <button type="button" class="saved-add" id="savedAdd" data-i18n="savedAdd">Save</button>
+          </div>
+          <div class="saved-note" id="savedNote" hidden></div>
+          <div class="saved-list" id="savedList"></div>
+          <div class="saved-empty" id="savedEmpty" data-i18n="savedEmpty">No saved searches</div>
+        </div>
+      </div>
       <button type="button" id="reset" class="reset-btn" data-i18n="reset" data-i18n-title="resetTitle">Reset</button>
     </div>
   </header>
@@ -101,6 +113,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
