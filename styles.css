@@ -584,3 +584,39 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
   padding: 20px; text-align: center;
   color: var(--text-faint); font-size: .78rem;
 }
+
+/* ---------- Shabbat observance screen ---------- */
+.shabbat-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px;
+  text-align: center;
+  background: var(--bg);
+  color: var(--text);
+}
+.shabbat-candles { filter: drop-shadow(0 4px 26px rgba(255,176,74,.45)); }
+.shabbat-line1 {
+  margin: 0;
+  font-size: clamp(1.15rem, 3.4vw, 1.7rem);
+  font-weight: 600;
+  line-height: 1.7;
+  max-width: 680px;
+}
+.shabbat-line2 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+@keyframes shabbat-flicker {
+  0%, 100% { opacity: 1; transform: scaleY(1) translateY(0); }
+  50%      { opacity: .82; transform: scaleY(.93) translateY(1px); }
+}
+.shabbat-candles .flame { transform-origin: center bottom; animation: shabbat-flicker 1.7s ease-in-out infinite; }
+.shabbat-candles .flame.b { animation-duration: 2.1s; animation-delay: .5s; }

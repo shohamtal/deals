@@ -863,6 +863,94 @@ async function loadActive() {
   }
 }
 
+// ---- Shabbat observance (Hebcal, Jerusalem times) ----
+// On Shabbat in Israel the site is unavailable. Times are compared as absolute
+// instants (Hebcal returns Israel offsets), so it closes for every visitor
+// worldwide during Israel's Shabbat. Fails OPEN if Hebcal can't be reached.
+const HEBCAL_URL = 'https://www.hebcal.com/shabbat?cfg=json&geonameid=281184&b=40';
+
+const CANDLES_SVG = `
+<svg class="shabbat-svg" width="150" height="185" viewBox="0 0 150 185" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="sbWax" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf3e0"/><stop offset="1" stop-color="#e7d5b0"/></linearGradient>
+    <radialGradient id="sbFlame" cx="50%" cy="32%" r="70%"><stop offset="0" stop-color="#fff7cc"/><stop offset="45%" stop-color="#ffcf5c"/><stop offset="100%" stop-color="#ff8a00"/></radialGradient>
+    <radialGradient id="sbHalo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffcf7a" stop-opacity=".6"/><stop offset="100%" stop-color="#ffcf7a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="50" cy="56" r="24" fill="url(#sbHalo)"/>
+  <circle cx="100" cy="56" r="24" fill="url(#sbHalo)"/>
+  <ellipse cx="50" cy="162" rx="27" ry="7" fill="#c9a24b"/>
+  <ellipse cx="100" cy="162" rx="27" ry="7" fill="#c9a24b"/>
+  <rect x="45" y="152" width="10" height="12" rx="2" fill="#b8891f"/>
+  <rect x="95" y="152" width="10" height="12" rx="2" fill="#b8891f"/>
+  <rect x="42" y="80" width="16" height="74" rx="6" fill="url(#sbWax)" stroke="#dcc79a"/>
+  <rect x="92" y="80" width="16" height="74" rx="6" fill="url(#sbWax)" stroke="#dcc79a"/>
+  <rect x="49" y="74" width="2" height="8" fill="#5a4a2a"/>
+  <rect x="99" y="74" width="2" height="8" fill="#5a4a2a"/>
+  <path class="flame a" d="M50 42 C58 54 56 70 50 72 C44 70 42 54 50 42 Z" fill="url(#sbFlame)"/>
+  <path class="flame b" d="M100 42 C108 54 106 70 100 72 C94 70 92 54 100 42 Z" fill="url(#sbFlame)"/>
+</svg>`;
+
+async function getShabbatWindow() {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await fetch(`${HEBCAL_URL}&_=${Date.now()}`, { cache: 'no-store', signal: ctrl.signal });
+    if (!res.ok) throw new Error('hebcal ' + res.status);
+    const data = await res.json();
+    let candles = null, havdalah = null;
+    for (const it of data.items || []) {
+      if (it.category === 'candles' && !candles) candles = new Date(it.date);
+      if (it.category === 'havdalah' && !havdalah) havdalah = new Date(it.date);
+    }
+    const now = new Date();
+    const closed = !!(candles && havdalah && now >= candles && now < havdalah);
+    return { candles, havdalah, closed };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+function renderShabbatClosed() {
+  document.documentElement.lang = 'he';
+  document.documentElement.dir = 'rtl';
+  document.title = 'שבת שלום';
+  document.body.innerHTML = `
+    <div class="shabbat-screen">
+      <div class="shabbat-candles">${CANDLES_SVG}</div>
+      <p class="shabbat-line1">אתר זה שומר שבת ויחזור לפעילות מיד בצאת השבת</p>
+      <p class="shabbat-line2">שבת שלום</p>
+    </div>`;
+}
+
+function applyStoredThemeEarly() {
+  let saved = 'light';
+  try { saved = localStorage.getItem(THEME_KEY) || 'light'; } catch (_) {}
+  document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
+}
+
+// Reload at a future instant to flip open<->closed automatically (guards the
+// setTimeout 32-bit range so far-off events just don't schedule).
+function scheduleReload(when, padMs) {
+  const ms = when.getTime() - Date.now() + (padMs || 0);
+  if (ms > 0 && ms < 2147483647) setTimeout(() => location.reload(), ms);
+}
+
+async function boot() {
+  applyStoredThemeEarly();
+  try {
+    const s = await getShabbatWindow();
+    if (s.closed) {
+      renderShabbatClosed();
+      scheduleReload(s.havdalah, 5000); // reopen just after havdalah
+      return;
+    }
+    if (s.candles) scheduleReload(s.candles, 2000); // auto-close when Shabbat starts
+  } catch (err) {
+    console.error('Shabbat check failed; opening site.', err); // fail open
+  }
+  init();
+}
+
 function init() {
   initTheme();
   setupMultiSelects();
@@ -887,4 +975,4 @@ function init() {
   loadActive();
 }
 
-init();
+boot();
