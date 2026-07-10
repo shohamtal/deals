@@ -167,6 +167,23 @@ function fmtDate(iso) {
   return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// YYYY-MM-DD for <input type="date">
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Default date range = last 3 months (from 3 months ago through today).
+function defaultDates() {
+  const to = new Date();
+  const from = new Date();
+  from.setMonth(from.getMonth() - 3);
+  return { from: ymd(from), to: ymd(to) };
+}
+function setDefaultDates() {
+  const dd = defaultDates();
+  controls.dateFrom.value = dd.from;
+  controls.dateTo.value = dd.to;
+}
+
 function escapeHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -346,7 +363,8 @@ function updateTagline() {
 async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
-  ['q', 'qx', 'condition', 'minPrice', 'maxPrice', 'dateFrom', 'dateTo'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  ['q', 'qx', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  setDefaultDates();
   controls.sort.value = 'date_desc';
   controls.hasPrice.checked = false;
   ['brand', 'country', 'source'].forEach((k) => ms[k] && ms[k].clear());
@@ -803,8 +821,7 @@ function bindEvents() {
     controls.condition.value = '';
     controls.minPrice.value = '';
     controls.maxPrice.value = '';
-    controls.dateFrom.value = '';
-    controls.dateTo.value = '';
+    setDefaultDates(); // reset restores the default last-3-months range
     controls.sort.value = 'date_desc';
     controls.hasPrice.checked = false;
     ms.brand.clear(); ms.country.clear(); ms.source.clear();
@@ -861,6 +878,9 @@ function init() {
 
   const wantedCat = CATEGORIES.find((c) => c.id === p.get('cat') && !c.comingSoon);
   if (wantedCat) activeCat = wantedCat;
+
+  // Default to the last 3 months unless the URL explicitly carries a date range.
+  if (!p.has('from') && !p.has('to')) setDefaultDates();
 
   setLanguage(startLang, { rerender: false }); // sets dir/lang/static text before data
   restoreFromUrl();
