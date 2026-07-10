@@ -43,6 +43,7 @@ const I18N = {
       savedDelConfirm: 'למחוק את החיפוש השמור?',
       brandLabel: 'מותג', countryLabel: 'מדינה', sourceLabel: 'מקור', conditionLabel: 'מצב',
       anyCondition: 'כל המצבים', minPrice: 'מ־₪', maxPrice: 'עד ₪', sortLabel: 'מיון',
+      dateFromLabel: 'מתאריך', dateToLabel: 'עד תאריך',
       sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
       sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
       sort_brand_asc: 'מותג · א׳–ת׳',
@@ -75,6 +76,7 @@ const I18N = {
       savedDelConfirm: 'Delete this saved search?',
       brandLabel: 'Brand', countryLabel: 'Country', sourceLabel: 'Source', conditionLabel: 'Condition',
       anyCondition: 'Any condition', minPrice: 'Min ₪', maxPrice: 'Max ₪', sortLabel: 'Sort by',
+      dateFromLabel: 'From date', dateToLabel: 'To date',
       sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
       sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
       sort_brand_asc: 'Brand · A–Z',
@@ -118,6 +120,7 @@ const grid = el('grid');
 const controls = {
   q: el('q'), qx: el('qx'), condition: el('condition'),
   minPrice: el('minPrice'), maxPrice: el('maxPrice'),
+  dateFrom: el('dateFrom'), dateTo: el('dateTo'),
   sort: el('sort'), hasPrice: el('hasPriceChk'),
 };
 const ms = {}; // multi-select filters: brand, country, source
@@ -343,7 +346,7 @@ function updateTagline() {
 async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
-  ['q', 'qx', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  ['q', 'qx', 'condition', 'minPrice', 'maxPrice', 'dateFrom', 'dateTo'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
   controls.sort.value = 'date_desc';
   controls.hasPrice.checked = false;
   ['brand', 'country', 'source'].forEach((k) => ms[k] && ms[k].clear());
@@ -393,6 +396,9 @@ function applyFilters() {
   const min = parsePrice(controls.minPrice.value);
   const max = parsePrice(controls.maxPrice.value);
   const onlyPriced = controls.hasPrice.checked;
+  // date range (compare on local calendar days, inclusive)
+  const fromMs = controls.dateFrom.value ? new Date(controls.dateFrom.value + 'T00:00:00').getTime() : null;
+  const toMs = controls.dateTo.value ? new Date(controls.dateTo.value + 'T23:59:59.999').getTime() : null;
 
   VIEW = ALL.filter((w) => {
     if (brandSet.size && !brandSet.has(w.brand)) return false;
@@ -402,6 +408,8 @@ function applyFilters() {
     if (onlyPriced && w.priceUsd == null && w.priceNis == null) return false;
     if (min != null && !(w.priceNis != null && w.priceNis >= min)) return false;
     if (max != null && !(w.priceNis != null && w.priceNis <= max)) return false;
+    if (fromMs != null && !(w.time && w.time >= fromMs)) return false;
+    if (toMs != null && !(w.time && w.time <= toMs)) return false;
     if (q || exTerms.length) {
       const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
@@ -572,6 +580,8 @@ function syncUrl() {
   if (controls.condition.value) p.set('condition', controls.condition.value);
   if (controls.minPrice.value) p.set('min', controls.minPrice.value);
   if (controls.maxPrice.value) p.set('max', controls.maxPrice.value);
+  if (controls.dateFrom.value) p.set('from', controls.dateFrom.value);
+  if (controls.dateTo.value) p.set('to', controls.dateTo.value);
   if (controls.sort.value !== 'date_desc') p.set('sort', controls.sort.value);
   if (controls.hasPrice.checked) p.set('priced', '1');
   if (page > 1) p.set('page', String(page));
@@ -590,6 +600,8 @@ function restoreFromUrl() {
   set(controls.condition, 'condition');
   set(controls.minPrice, 'min');
   set(controls.maxPrice, 'max');
+  set(controls.dateFrom, 'from');
+  set(controls.dateTo, 'to');
   set(controls.sort, 'sort');
   controls.hasPrice.checked = p.get('priced') === '1';
   const pg = parseInt(p.get('page'), 10);
@@ -650,6 +662,8 @@ function currentFilterQuery() {
   if (controls.condition.value) p.set('condition', controls.condition.value);
   if (controls.minPrice.value) p.set('min', controls.minPrice.value);
   if (controls.maxPrice.value) p.set('max', controls.maxPrice.value);
+  if (controls.dateFrom.value) p.set('from', controls.dateFrom.value);
+  if (controls.dateTo.value) p.set('to', controls.dateTo.value);
   if (controls.sort.value !== 'date_desc') p.set('sort', controls.sort.value);
   if (controls.hasPrice.checked) p.set('priced', '1');
   return p.toString();
@@ -665,6 +679,8 @@ function applyFilterQuery(qs) {
   controls.condition.value = p.get('condition') || '';
   controls.minPrice.value = p.get('min') || '';
   controls.maxPrice.value = p.get('max') || '';
+  controls.dateFrom.value = p.get('from') || '';
+  controls.dateTo.value = p.get('to') || '';
   controls.sort.value = p.get('sort') || 'date_desc';
   controls.hasPrice.checked = p.get('priced') === '1';
   applyFilters();
@@ -681,6 +697,7 @@ function describeQuery(qs) {
   if (p.get('q')) parts.push('“' + p.get('q') + '”');
   if (p.get('qx')) parts.push('−' + p.get('qx'));
   if (p.get('min') || p.get('max')) parts.push('₪' + (p.get('min') || '0') + '–' + (p.get('max') || '∞'));
+  if (p.get('from') || p.get('to')) parts.push('📅 ' + (p.get('from') || '…') + '→' + (p.get('to') || '…'));
   return parts.join(' · ');
 }
 
@@ -777,7 +794,7 @@ function bindEvents() {
   controls.qx.addEventListener('input', debounced);
   controls.minPrice.addEventListener('input', debounced);
   controls.maxPrice.addEventListener('input', debounced);
-  ['condition', 'sort'].forEach((k) => controls[k].addEventListener('change', applyFilters));
+  ['condition', 'sort', 'dateFrom', 'dateTo'].forEach((k) => controls[k].addEventListener('change', applyFilters));
   controls.hasPrice.addEventListener('change', applyFilters);
 
   el('reset').addEventListener('click', () => {
@@ -786,6 +803,8 @@ function bindEvents() {
     controls.condition.value = '';
     controls.minPrice.value = '';
     controls.maxPrice.value = '';
+    controls.dateFrom.value = '';
+    controls.dateTo.value = '';
     controls.sort.value = 'date_desc';
     controls.hasPrice.checked = false;
     ms.brand.clear(); ms.country.clear(); ms.source.clear();

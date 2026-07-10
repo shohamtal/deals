@@ -6,7 +6,7 @@
   <title>דילים</title>
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
   <header class="site-header">
@@ -66,6 +66,14 @@
         <input type="number" id="maxPrice" min="0" step="500" placeholder="∞" inputmode="numeric" />
       </div>
       <div class="filter-field">
+        <label for="dateFrom" data-i18n="dateFromLabel">From date</label>
+        <input type="date" id="dateFrom" />
+      </div>
+      <div class="filter-field">
+        <label for="dateTo" data-i18n="dateToLabel">To date</label>
+        <input type="date" id="dateTo" />
+      </div>
+      <div class="filter-field">
         <label for="sort" data-i18n="sortLabel">Sort by</label>
         <select id="sort">
           <option value="date_desc" data-i18n="sort_date_desc">Date · newest first</option>
@@ -113,6 +121,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
