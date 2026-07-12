@@ -34,7 +34,7 @@ const I18N = {
   he: {
     dir: 'rtl', htmlLang: 'he', flag: '🇮🇱', docTitle: 'דילים', brand: 'דילים',
     strings: {
-      searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
+      filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
       excludeLabel: 'לא כולל', excludePlaceholder: 'מילים להחרגה (מופרדות בפסיק)…',
       savedBtn: '★ שמורים', savedNamePh: 'שם החיפוש', savedAdd: 'שמירה',
       savedEmpty: 'אין חיפושים שמורים', savedDefault: 'חיפוש',
@@ -67,7 +67,7 @@ const I18N = {
   en: {
     dir: 'ltr', htmlLang: 'en', flag: '🇺🇸', docTitle: 'Deals', brand: 'Deals',
     strings: {
-      searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
+      filtersToggle: 'Filters', searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
       excludeLabel: 'Exclude', excludePlaceholder: 'Words to exclude (comma-separated)…',
       savedBtn: '★ Saved', savedNamePh: 'Search name', savedAdd: 'Save',
       savedEmpty: 'No saved searches', savedDefault: 'Search',
@@ -814,6 +814,11 @@ function bindEvents() {
   controls.maxPrice.addEventListener('input', debounced);
   ['condition', 'sort', 'dateFrom', 'dateTo'].forEach((k) => controls[k].addEventListener('change', applyFilters));
   controls.hasPrice.addEventListener('change', applyFilters);
+
+  el('filtersToggle').addEventListener('click', () => {
+    const open = el('filters').classList.toggle('open');
+    el('filtersToggle').setAttribute('aria-expanded', String(open));
+  });
 
   el('reset').addEventListener('click', () => {
     controls.q.value = '';

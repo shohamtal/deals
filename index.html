@@ -6,7 +6,7 @@
   <title>דילים</title>
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
   <header class="site-header">
@@ -31,6 +31,11 @@
     </div>
 
     <nav class="tabs" id="tabs" aria-label="Categories"></nav>
+
+    <button type="button" id="filtersToggle" class="filters-toggle" aria-expanded="false" aria-controls="filters">
+      <span data-i18n="filtersToggle">Filters</span>
+      <span class="ft-chevron" aria-hidden="true">▾</span>
+    </button>
 
     <div class="filters" id="filters">
       <div class="filter-field grow">
@@ -121,6 +126,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

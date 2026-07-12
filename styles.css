@@ -192,6 +192,11 @@ body {
   align-items: flex-end;
 }
 
+/* Mobile-only "Filters" toggle (hidden on desktop; filters always shown there) */
+.filters-toggle { display: none; }
+.filters-toggle .ft-chevron { transition: transform .2s; }
+.filters-toggle[aria-expanded="true"] .ft-chevron { transform: rotate(180deg); }
+
 .filter-field { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
 .filter-field.grow { flex: 1 1 220px; min-width: 200px; }
 .filter-field.narrow { min-width: 88px; width: 96px; }
@@ -620,3 +625,48 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 }
 .shabbat-candles .flame { transform-origin: center bottom; animation: shabbat-flicker 1.7s ease-in-out infinite; }
 .shabbat-candles .flame.b { animation-duration: 2.1s; animation-delay: .5s; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 760px) {
+  /* Don't pin the header — a tall filter panel would otherwise cover the
+     viewport and trap scrolling. Let the whole page scroll naturally. */
+  .site-header { position: static; }
+
+  .header-inner { padding: 12px 16px 2px; }
+  .brand-block h1 { font-size: 1.2rem; }
+  .tabs { padding-inline: 16px; }
+
+  .filters-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 16px 12px;
+    padding: 11px 14px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: .92rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filters-toggle:hover { border-color: var(--accent); }
+
+  /* Collapsed by default on mobile; the toggle adds .open to reveal. */
+  .filters { display: none; padding: 0 16px 14px; }
+  .filters.open { display: flex; }
+
+  /* One field per row for tappable targets; search/exclude already full width. */
+  .filter-field,
+  .filter-field.grow,
+  .filter-field.narrow { flex: 1 1 100%; width: auto; min-width: 0; }
+
+  /* Popups: anchor to the field's start edge and cap width to the viewport so
+     they never render off-screen on a narrow device. */
+  .ms-panel, .saved-menu { inset-inline: 0 auto; width: min(320px, calc(100vw - 32px)); }
+  .lang-menu { inset-inline: auto 0; }
+
+  main { padding: 16px 16px 40px; }
+  .grid { gap: 14px; }
+}
