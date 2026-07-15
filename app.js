@@ -680,8 +680,8 @@ function currentFilterQuery() {
   if (controls.condition.value) p.set('condition', controls.condition.value);
   if (controls.minPrice.value) p.set('min', controls.minPrice.value);
   if (controls.maxPrice.value) p.set('max', controls.maxPrice.value);
-  if (controls.dateFrom.value) p.set('from', controls.dateFrom.value);
-  if (controls.dateTo.value) p.set('to', controls.dateTo.value);
+  // Dates are intentionally NOT saved: a saved search captures watch
+  // attributes only, and always opens on the sliding last-3-months window.
   if (controls.sort.value !== 'date_desc') p.set('sort', controls.sort.value);
   if (controls.hasPrice.checked) p.set('priced', '1');
   return p.toString();
@@ -697,8 +697,9 @@ function applyFilterQuery(qs) {
   controls.condition.value = p.get('condition') || '';
   controls.minPrice.value = p.get('min') || '';
   controls.maxPrice.value = p.get('max') || '';
-  controls.dateFrom.value = p.get('from') || '';
-  controls.dateTo.value = p.get('to') || '';
+  // Saved searches never carry dates — always open on the sliding default
+  // window (last 3 months), even for searches saved before this change.
+  setDefaultDates();
   controls.sort.value = p.get('sort') || 'date_desc';
   controls.hasPrice.checked = p.get('priced') === '1';
   applyFilters();
@@ -715,7 +716,6 @@ function describeQuery(qs) {
   if (p.get('q')) parts.push('“' + p.get('q') + '”');
   if (p.get('qx')) parts.push('−' + p.get('qx'));
   if (p.get('min') || p.get('max')) parts.push('₪' + (p.get('min') || '0') + '–' + (p.get('max') || '∞'));
-  if (p.get('from') || p.get('to')) parts.push('📅 ' + (p.get('from') || '…') + '→' + (p.get('to') || '…'));
   return parts.join(' · ');
 }
 
