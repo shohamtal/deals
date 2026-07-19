@@ -36,6 +36,7 @@ const I18N = {
     strings: {
       filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
       excludeLabel: 'לא כולל', excludePlaceholder: 'הוסיפו מילה…',
+      excludeNone: 'ללא', excludeCount: '{n} מילים',
       savedBtn: '★ שמורים', savedNamePh: 'שם החיפוש', savedAdd: 'שמירה',
       savedEmpty: 'אין חיפושים שמורים', savedDefault: 'חיפוש',
       savedMax: 'הגעת ל‑20 חיפושים. מחקו אחד כדי לשמור חדש.',
@@ -69,6 +70,7 @@ const I18N = {
     strings: {
       filtersToggle: 'Filters', searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
       excludeLabel: 'Exclude', excludePlaceholder: 'Add a word…',
+      excludeNone: 'None', excludeCount: '{n} words',
       savedBtn: '★ Saved', savedNamePh: 'Search name', savedAdd: 'Save',
       savedEmpty: 'No saved searches', savedDefault: 'Search',
       savedMax: 'Reached 20 searches. Delete one to save a new one.',
@@ -310,16 +312,32 @@ function createMultiSelect(mount, { allLabel, texts, onChange }) {
   };
 }
 
-// ---- Chips input (used by the "exclude" filter) ----
-// Each term the user enters becomes a removable chip. Terms are added on Enter,
-// comma, or blur, and removed via the chip's × (or Backspace on an empty entry).
+// ---- Chips dropdown (used by the "exclude" filter) ----
+// A compact trigger (like the multi-selects) opens a panel where each excluded
+// term is a removable chip. Terms are added via Enter, comma, or blur, and
+// removed via the chip's × (or Backspace on an empty entry).
 function createChipsInput(mount, { onChange }) {
   let terms = [];
-  mount.innerHTML = `<span class="chips-flow"></span><input type="text" class="chips-entry" data-i18n-ph="excludePlaceholder" autocomplete="off" />`;
+  mount.innerHTML = `
+    <button type="button" class="ms-trigger"></button>
+    <div class="ms-panel ms-ex-panel" role="group">
+      <div class="chips-flow"></div>
+      <input type="text" class="chips-entry" data-i18n-ph="excludePlaceholder" autocomplete="off" />
+      <div class="ms-foot"><span></span><button type="button" class="ms-clear chips-clear"></button></div>
+    </div>`;
+  const trigger = mount.querySelector('.ms-trigger');
+  const panel = mount.querySelector('.ms-panel');
   const flow = mount.querySelector('.chips-flow');
   const entry = mount.querySelector('.chips-entry');
+  const clearBtn = mount.querySelector('.chips-clear');
 
-  function render() {
+  function updateTrigger() {
+    const n = terms.length;
+    if (n === 0) { trigger.textContent = t('excludeNone'); trigger.classList.remove('has-sel'); }
+    else if (n === 1) { trigger.textContent = terms[0]; trigger.classList.add('has-sel'); }
+    else { trigger.textContent = t('excludeCount', { n }); trigger.classList.add('has-sel'); }
+  }
+  function renderChips() {
     flow.innerHTML = '';
     terms.forEach((term, i) => {
       const chip = document.createElement('span');
@@ -328,7 +346,7 @@ function createChipsInput(mount, { onChange }) {
       chip.querySelector('.chip-text').textContent = term;
       chip.querySelector('.chip-x').addEventListener('click', (e) => {
         e.stopPropagation();
-        terms.splice(i, 1); render(); onChange();
+        terms.splice(i, 1); renderChips(); updateTrigger(); onChange();
       });
       flow.appendChild(chip);
     });
@@ -337,26 +355,36 @@ function createChipsInput(mount, { onChange }) {
     const parts = entry.value.split(',').map((s) => s.trim()).filter(Boolean);
     let added = false;
     parts.forEach((p) => {
-      if (!terms.some((t) => t.toLowerCase() === p.toLowerCase())) { terms.push(p); added = true; }
+      if (!terms.some((tm) => tm.toLowerCase() === p.toLowerCase())) { terms.push(p); added = true; }
     });
     entry.value = '';
-    if (added) { render(); onChange(); }
+    if (added) { renderChips(); updateTrigger(); onChange(); }
   }
+  function open() {
+    document.querySelectorAll('.ms.open').forEach((m) => { if (m !== mount) m.classList.remove('open'); });
+    mount.classList.add('open');
+    entry.focus();
+  }
+  function close() { commit(); mount.classList.remove('open'); }
 
+  trigger.addEventListener('click', (e) => { e.stopPropagation(); mount.classList.contains('open') ? close() : open(); });
+  panel.addEventListener('click', (e) => e.stopPropagation());
   entry.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); }
-    else if (e.key === 'Backspace' && !entry.value && terms.length) { terms.pop(); render(); onChange(); }
+    else if (e.key === 'Backspace' && !entry.value && terms.length) { terms.pop(); renderChips(); updateTrigger(); onChange(); }
+    else if (e.key === 'Escape') { close(); trigger.focus(); }
   });
   entry.addEventListener('blur', commit);
-  // Clicking anywhere in the box focuses the text entry.
-  mount.addEventListener('click', () => entry.focus());
+  clearBtn.addEventListener('click', () => { terms = []; entry.value = ''; renderChips(); updateTrigger(); onChange(); });
 
-  render();
+  clearBtn.textContent = t('msClear');
+  renderChips(); updateTrigger();
   return {
     getTerms() { return terms.slice(); },
     getValue() { return terms.join(', '); },     // comma string for URL / saved searches
-    setValue(str) { terms = String(str || '').split(',').map((s) => s.trim()).filter(Boolean); entry.value = ''; render(); },
-    clear() { terms = []; entry.value = ''; render(); },
+    setValue(str) { terms = String(str || '').split(',').map((s) => s.trim()).filter(Boolean); entry.value = ''; renderChips(); updateTrigger(); },
+    clear() { terms = []; entry.value = ''; renderChips(); updateTrigger(); },
+    refreshTexts() { clearBtn.textContent = t('msClear'); updateTrigger(); },  // language switch
   };
 }
 
@@ -700,6 +728,7 @@ function setLanguage(l, { rerender = true } = {}) {
 
   applyStaticI18n();
   Object.keys(ms).forEach((k) => ms[k].refreshTexts({ allLabel: t(MS_ALL_KEY[k]), texts: msTexts() }));
+  if (excludeChips) excludeChips.refreshTexts();
   renderTabs();
 
   if (rerender && ALL.length) {
