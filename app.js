@@ -35,7 +35,7 @@ const I18N = {
     dir: 'rtl', htmlLang: 'he', flag: '🇮🇱', docTitle: 'דילים', brand: 'דילים',
     strings: {
       filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
-      excludeLabel: 'לא כולל', excludePlaceholder: 'מילים להחרגה (מופרדות בפסיק)…',
+      excludeLabel: 'לא כולל', excludePlaceholder: 'הוסיפו מילה…',
       savedBtn: '★ שמורים', savedNamePh: 'שם החיפוש', savedAdd: 'שמירה',
       savedEmpty: 'אין חיפושים שמורים', savedDefault: 'חיפוש',
       savedMax: 'הגעת ל‑20 חיפושים. מחקו אחד כדי לשמור חדש.',
@@ -68,7 +68,7 @@ const I18N = {
     dir: 'ltr', htmlLang: 'en', flag: '🇺🇸', docTitle: 'Deals', brand: 'Deals',
     strings: {
       filtersToggle: 'Filters', searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
-      excludeLabel: 'Exclude', excludePlaceholder: 'Words to exclude (comma-separated)…',
+      excludeLabel: 'Exclude', excludePlaceholder: 'Add a word…',
       savedBtn: '★ Saved', savedNamePh: 'Search name', savedAdd: 'Save',
       savedEmpty: 'No saved searches', savedDefault: 'Search',
       savedMax: 'Reached 20 searches. Delete one to save a new one.',
@@ -118,12 +118,13 @@ let page = 1;
 const el = (id) => document.getElementById(id);
 const grid = el('grid');
 const controls = {
-  q: el('q'), qx: el('qx'), condition: el('condition'),
+  q: el('q'), condition: el('condition'),
   minPrice: el('minPrice'), maxPrice: el('maxPrice'),
   dateFrom: el('dateFrom'), dateTo: el('dateTo'),
   sort: el('sort'), hasPrice: el('hasPriceChk'),
 };
-const ms = {}; // multi-select filters: brand, country, source
+const ms = {};        // multi-select filters: brand, country, source
+let excludeChips;     // chips input for the "exclude" filter (created in setupExclude)
 
 // ---- i18n helpers ----
 function dict() { return I18N[lang].strings; }
@@ -309,6 +310,60 @@ function createMultiSelect(mount, { allLabel, texts, onChange }) {
   };
 }
 
+// ---- Chips input (used by the "exclude" filter) ----
+// Each term the user enters becomes a removable chip. Terms are added on Enter,
+// comma, or blur, and removed via the chip's × (or Backspace on an empty entry).
+function createChipsInput(mount, { onChange }) {
+  let terms = [];
+  mount.innerHTML = `<span class="chips-flow"></span><input type="text" class="chips-entry" data-i18n-ph="excludePlaceholder" autocomplete="off" />`;
+  const flow = mount.querySelector('.chips-flow');
+  const entry = mount.querySelector('.chips-entry');
+
+  function render() {
+    flow.innerHTML = '';
+    terms.forEach((term, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = `<span class="chip-text"></span><button type="button" class="chip-x" aria-label="remove" tabindex="-1">×</button>`;
+      chip.querySelector('.chip-text').textContent = term;
+      chip.querySelector('.chip-x').addEventListener('click', (e) => {
+        e.stopPropagation();
+        terms.splice(i, 1); render(); onChange();
+      });
+      flow.appendChild(chip);
+    });
+  }
+  function commit() {
+    const parts = entry.value.split(',').map((s) => s.trim()).filter(Boolean);
+    let added = false;
+    parts.forEach((p) => {
+      if (!terms.some((t) => t.toLowerCase() === p.toLowerCase())) { terms.push(p); added = true; }
+    });
+    entry.value = '';
+    if (added) { render(); onChange(); }
+  }
+
+  entry.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); }
+    else if (e.key === 'Backspace' && !entry.value && terms.length) { terms.pop(); render(); onChange(); }
+  });
+  entry.addEventListener('blur', commit);
+  // Clicking anywhere in the box focuses the text entry.
+  mount.addEventListener('click', () => entry.focus());
+
+  render();
+  return {
+    getTerms() { return terms.slice(); },
+    getValue() { return terms.join(', '); },     // comma string for URL / saved searches
+    setValue(str) { terms = String(str || '').split(',').map((s) => s.trim()).filter(Boolean); entry.value = ''; render(); },
+    clear() { terms = []; entry.value = ''; render(); },
+  };
+}
+
+function setupExclude() {
+  excludeChips = createChipsInput(el('qx'), { onChange: applyFilters });
+}
+
 const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources' };
 function msTexts() {
   return { filter: t('msFilter'), noMatches: t('msNoMatches'), clear: t('msClear'), selected: t('msSelected') };
@@ -363,7 +418,8 @@ function updateTagline() {
 async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
-  ['q', 'qx', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  ['q', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  excludeChips.clear();
   setDefaultDates();
   controls.sort.value = 'date_desc';
   controls.hasPrice.checked = false;
@@ -406,7 +462,10 @@ function buildFilters() {
 // ---- Filtering + sorting ----
 function applyFilters() {
   const q = controls.q.value.trim().toLowerCase();
-  const exTerms = controls.qx.value.toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
+  // Search wins over exclude: any exclude term contained in the search query is
+  // dropped, so an explicit search is never cancelled out by the exclude list.
+  const exAll = excludeChips.getTerms().map((s) => s.toLowerCase()).filter(Boolean);
+  const exTerms = q ? exAll.filter((term) => !q.includes(term)) : exAll;
   const brandSet = new Set(ms.brand.getSelected());
   const countrySet = new Set(ms.country.getSelected());
   const sourceSet = new Set(ms.source.getSelected());
@@ -591,7 +650,7 @@ function syncUrl() {
   if (lang !== 'he') p.set('lang', lang);
   if (activeCat.id !== CATEGORIES[0].id) p.set('cat', activeCat.id);
   if (controls.q.value.trim()) p.set('q', controls.q.value.trim());
-  if (controls.qx.value.trim()) p.set('qx', controls.qx.value.trim());
+  if (excludeChips.getValue()) p.set('qx', excludeChips.getValue());
   ms.brand.getSelected().forEach((v) => p.append('brand', v));
   ms.country.getSelected().forEach((v) => p.append('country', v));
   ms.source.getSelected().forEach((v) => p.append('source', v));
@@ -611,7 +670,7 @@ function restoreFromUrl() {
   const p = new URLSearchParams(location.search);
   const set = (ctrl, key) => { if (ctrl && p.has(key)) ctrl.value = p.get(key); };
   set(controls.q, 'q');
-  set(controls.qx, 'qx');
+  if (p.has('qx')) excludeChips.setValue(p.get('qx'));
   if (p.has('brand')) ms.brand.setSelected(p.getAll('brand'));
   if (p.has('country')) ms.country.setSelected(p.getAll('country'));
   if (p.has('source')) ms.source.setSelected(p.getAll('source'));
@@ -673,7 +732,7 @@ function setupLang() {
 function currentFilterQuery() {
   const p = new URLSearchParams();
   if (controls.q.value.trim()) p.set('q', controls.q.value.trim());
-  if (controls.qx.value.trim()) p.set('qx', controls.qx.value.trim());
+  if (excludeChips.getValue()) p.set('qx', excludeChips.getValue());
   ms.brand.getSelected().forEach((v) => p.append('brand', v));
   ms.country.getSelected().forEach((v) => p.append('country', v));
   ms.source.getSelected().forEach((v) => p.append('source', v));
@@ -690,7 +749,7 @@ function currentFilterQuery() {
 function applyFilterQuery(qs) {
   const p = new URLSearchParams(qs);
   controls.q.value = p.get('q') || '';
-  controls.qx.value = p.get('qx') || '';
+  excludeChips.setValue(p.get('qx') || '');
   ms.brand.setSelected(p.getAll('brand'));
   ms.country.setSelected(p.getAll('country'));
   ms.source.setSelected(p.getAll('source'));
@@ -809,7 +868,6 @@ function bindEvents() {
   let tm;
   const debounced = () => { clearTimeout(tm); tm = setTimeout(applyFilters, 200); };
   controls.q.addEventListener('input', debounced);
-  controls.qx.addEventListener('input', debounced);
   controls.minPrice.addEventListener('input', debounced);
   controls.maxPrice.addEventListener('input', debounced);
   ['condition', 'sort', 'dateFrom', 'dateTo'].forEach((k) => controls[k].addEventListener('change', applyFilters));
@@ -822,7 +880,7 @@ function bindEvents() {
 
   el('reset').addEventListener('click', () => {
     controls.q.value = '';
-    controls.qx.value = '';
+    excludeChips.clear();
     controls.condition.value = '';
     controls.minPrice.value = '';
     controls.maxPrice.value = '';
@@ -959,6 +1017,7 @@ async function boot() {
 function init() {
   initTheme();
   setupMultiSelects();
+  setupExclude();
   setupLang();
   setupSaved();
   bindEvents();

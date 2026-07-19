@@ -225,6 +225,67 @@ body {
   box-shadow: 0 0 0 3px rgba(37,99,235,.16);
 }
 
+/* ---------- Exclude chips input ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 5px 7px;
+  min-height: 38px;
+  cursor: text;
+  transition: border-color .15s, box-shadow .15s;
+}
+.chips:focus-within {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.16);
+}
+.chips-flow { display: contents; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  background: rgba(214,69,69,.10);
+  border: 1px solid rgba(214,69,69,.30);
+  border-radius: 7px;
+  padding-block: 2px;
+  padding-inline: 8px 3px;   /* text side / × side — flips in RTL */
+  font-size: .82rem;
+  color: var(--text);
+}
+.chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-x {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 3px;
+  border-radius: 5px;
+}
+.chip-x:hover { color: #d64545; background: rgba(214,69,69,.15); }
+/* Entry grows to fill; width:auto beats `.filters input { width:100% }` */
+.filters .chips .chips-entry {
+  flex: 1 1 70px;
+  min-width: 70px;
+  width: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 3px 2px;
+}
+.filters .chips .chips-entry:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
 .reset-btn {
   background: transparent;
   color: var(--text-dim);
