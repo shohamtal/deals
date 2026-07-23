@@ -115,6 +115,7 @@ let activeCat = CATEGORIES[0];
 let ALL = [];
 let VIEW = [];
 let page = 1;
+let prefetch = null;  // in-flight sheet fetch started during boot() { catId, promise }
 
 // ---- DOM ----
 const el = (id) => document.getElementById(id);
@@ -937,7 +938,16 @@ async function loadActive() {
   el('headerStatus').textContent = t('loading');
   const savedPage = page;
   try {
-    ALL = await loadData(activeCat);
+    // Reuse the fetch boot() kicked off in parallel with the Shabbat check, if
+    // it's for this category; otherwise (e.g. tab switch) start a fresh one.
+    let dataPromise;
+    if (prefetch && prefetch.catId === activeCat.id) {
+      dataPromise = prefetch.promise;
+      prefetch = null;
+    } else {
+      dataPromise = loadData(activeCat);
+    }
+    ALL = await dataPromise;
     buildFilters();
     restoreFromUrl();
     page = savedPage;
@@ -1027,8 +1037,25 @@ function scheduleReload(when, padMs) {
   if (ms > 0 && ms < 2147483647) setTimeout(() => location.reload(), ms);
 }
 
+// Start the sheet fetch immediately, in parallel with the Shabbat check. The
+// check gates what we *display*, not when the network request *begins*, so the
+// data is already in flight (often done) by the time init() awaits it.
+function startPrefetch(cat) {
+  const promise = loadData(cat);
+  promise.catch(() => {}); // avoid an unhandled rejection while boot() awaits Hebcal; loadActive() re-awaits and shows the error box
+  prefetch = { catId: cat.id, promise };
+}
+
 async function boot() {
   applyStoredThemeEarly();
+
+  // Resolve the target category from the URL up front so the prefetch fetches
+  // the right tab, then kick it off before the (blocking) Shabbat check.
+  const p0 = new URLSearchParams(location.search);
+  const wantedCat = CATEGORIES.find((c) => c.id === p0.get('cat') && !c.comingSoon);
+  if (wantedCat) activeCat = wantedCat;
+  startPrefetch(activeCat);
+
   try {
     const s = await getShabbatWindow();
     if (s.closed) {
