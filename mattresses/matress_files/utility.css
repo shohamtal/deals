@@ -1,0 +1,38 @@
+/* Hide Chat / Accessibility Button */
+.accessibility-hide-button {
+	padding: 10px;
+	z-index: 2000;
+	border-radius: 7px;
+	font-size: 16px;
+	font-weight: bold;
+	color: #1a3a4c;
+	cursor: pointer;
+	background-color: #f3f7fc;
+	border: 2px solid #1a3a4c;
+}
+.chat-hide-button {
+	position: fixed;
+	left: 100px;
+	bottom: 30px;
+	font-size: 16px;
+	font-weight: bold;
+	color: white;
+	border: 2px solid #1b80c4;
+	border-radius: 7px;
+	padding: 10px;
+	z-index: 2000;
+	cursor: pointer;
+	background-color: #1b80c4;
+	display: none;
+}
+
+.chat-close-button {
+	position: absolute;
+	top: 12px;
+	left: 9px;
+	color: white;
+	padding: 10px;
+	border-radius: 7px;
+	background-color: #1b80c4;
+	font-size: 18px;
+}
