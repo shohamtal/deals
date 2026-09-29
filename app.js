@@ -512,8 +512,12 @@ function applyFilters() {
     if (sourceSet.size && !sourceSet.has(w.source)) return false;
     if (condition && w.condition !== condition) return false;
     if (onlyPriced && w.priceUsd == null && w.priceNis == null) return false;
-    if (min != null && !(w.priceNis != null && w.priceNis >= min)) return false;
-    if (max != null && !(w.priceNis != null && w.priceNis <= max)) return false;
+    // The price range only filters listings that HAVE a price. Unpriced ones
+    // (e.g. Facebook posts with the price "in private") pass through unless
+    // "Only listings with a price" is ticked; otherwise setting any range
+    // silently hid them all.
+    if (min != null && w.priceNis != null && w.priceNis < min) return false;
+    if (max != null && w.priceNis != null && w.priceNis > max) return false;
     if (fromMs != null && !(w.time && w.time >= fromMs)) return false;
     if (toMs != null && !(w.time && w.time <= toMs)) return false;
     if (q || exTerms.length) {
