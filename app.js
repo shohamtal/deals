@@ -3,7 +3,7 @@
  * no API key, no write scope). Nothing here can modify the sheet.
  *
  * Add a new deal category = add an entry to CATEGORIES (each maps to one sheet
- * tab + its column layout). UI strings live in I18N. */
+ * tab + its row parser + its card template). UI strings live in I18N. */
 
 'use strict';
 
@@ -18,10 +18,21 @@ const CATEGORIES = [
     // Columns are read from the CSV by header name. Only add a headerMap entry
     // (logicalName: 'Actual Header') if a future sheet uses different headers.
     headerMap: {},
+    parseRow: parseWatchRow,
+    card: watchCardHtml,
   },
-  // Future tab — flip `comingSoon` off and fill in sheetId/gid:
-  { id: 'cars', icon: '🚗', label: { he: 'מכוניות', en: 'Cars' }, comingSoon: true },
+  {
+    id: 'cars',
+    icon: '🚗',
+    label: { he: 'מכוניות', en: 'Cars' },
+    sheetId: '1jbke0dmA01rr-eTtHJ7GHZK4ULVIXi3dlR1P9k5BUWc',
+    gid: '140391439', // "cars" tab, written by web-automation2's cars finder
+    headerMap: {},
+    parseRow: parseCarRow,
+    card: carCardHtml,
+  },
 ];
+// Filter fields marked data-only="<cat id>" in index.html show only on that tab.
 
 const PAGE_SIZE = 50;
 const THEME_KEY = 'deals-theme';
@@ -63,6 +74,9 @@ const I18N = {
       errTitle: 'לא ניתן לטעון את הנתונים.',
       errBody: 'גיליון Google חייב להיות משותף כ״כל מי שיש לו הקישור · צופה״. נסו שוב בעוד רגע.',
       footer: 'תצוגה לקריאה בלבד מתוך גיליון Google חי · הנתונים מתרעננים בכל טעינת עמוד. מחירים מוצגים בדולר ($) ובש״ח (₪) בלבד.',
+      modelLabel: 'דגם', allModels: 'כל הדגמים', handLabel: 'יד', allHands: 'כל הידיים', handN: 'יד {n}',
+      yearFrom: 'משנה', yearTo: 'עד שנה', maxKm: 'עד ק״מ',
+      metaYear: 'שנה', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
     },
   },
   en: {
@@ -97,6 +111,9 @@ const I18N = {
       errTitle: "Couldn't load the data.",
       errBody: 'The Google Sheet must be shared as “Anyone with the link · Viewer”. Please retry in a moment.',
       footer: 'Read-only view of a live Google Sheet · data refreshes on page load. Prices shown in USD ($) and ₪ (NIS) only.',
+      modelLabel: 'Model', allModels: 'All models', handLabel: 'Hand', allHands: 'Any hand', handN: 'Hand {n}',
+      yearFrom: 'Year from', yearTo: 'Year to', maxKm: 'Max km',
+      metaYear: 'Year', metaKm: 'Km', metaHand: 'Hand', metaLocation: 'Location',
     },
   },
 };
@@ -125,8 +142,9 @@ const controls = {
   minPrice: el('minPrice'), maxPrice: el('maxPrice'),
   dateFrom: el('dateFrom'), dateTo: el('dateTo'),
   sort: el('sort'), hasPrice: el('hasPriceChk'),
+  yearMin: el('yearMin'), yearMax: el('yearMax'), maxKm: el('maxKm'),
 };
-const ms = {};        // multi-select filters: brand, country, source
+const ms = {};        // multi-select filters: brand, country, source (+ model, hand on cars)
 let excludeChips;     // chips input for the "exclude" filter (created in setupExclude)
 
 // ---- i18n helpers ----
@@ -393,7 +411,9 @@ function setupExclude() {
   excludeChips = createChipsInput(el('qx'), { onChange: applyFilters });
 }
 
-const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources' };
+const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands' };
+const MS_KEYS = Object.keys(MS_ALL_KEY);
+const NUM_KEYS = ['yearMin', 'yearMax', 'maxKm']; // car-only number inputs (URL keys match)
 function msTexts() {
   return { filter: t('msFilter'), noMatches: t('msNoMatches'), clear: t('msClear'), selected: t('msSelected') };
 }
@@ -440,6 +460,11 @@ function renderTabs() {
   });
 }
 
+// Show only the filter fields that apply to the active tab.
+function applyCatVisibility() {
+  document.querySelectorAll('[data-only]').forEach((n) => { n.hidden = n.dataset.only !== activeCat.id; });
+}
+
 function updateTagline() {
   el('tagline').textContent = `${activeCat.icon} ${activeCat.label[lang]} · ${ALL.length.toLocaleString()} ${t('listingsWord')}`;
 }
@@ -447,13 +472,14 @@ function updateTagline() {
 async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
-  ['q', 'condition', 'minPrice', 'maxPrice'].forEach((k) => { if (controls[k]) controls[k].value = ''; });
+  ['q', 'condition', 'minPrice', 'maxPrice', ...NUM_KEYS].forEach((k) => { if (controls[k]) controls[k].value = ''; });
   excludeChips.clear();
   setDefaultDates();
   controls.sort.value = 'date_desc';
   controls.hasPrice.checked = false;
-  ['brand', 'country', 'source'].forEach((k) => ms[k] && ms[k].clear());
+  MS_KEYS.forEach((k) => ms[k] && ms[k].clear());
   renderTabs();
+  applyCatVisibility();
   await loadActive();
 }
 
@@ -482,6 +508,9 @@ function buildFilters() {
   ms.brand.setOptions(toOpts('brand'));
   ms.country.setOptions(toOpts('country', 'country'));
   ms.source.setOptions(toOpts('source'));
+  ms.model.setOptions(toOpts('model'));
+  ms.hand.setOptions(counted('hand').sort((a, b) => a[0] - b[0])
+    .map(([value, count]) => ({ value, count, label: t('handN', { n: value }) })));
 
   const condVal = controls.condition.value;
   fillSelect(controls.condition, counted('condition').map(([value]) => ({ value, label: displayVal('condition', value) })));
@@ -498,6 +527,12 @@ function applyFilters() {
   const brandSet = new Set(ms.brand.getSelected());
   const countrySet = new Set(ms.country.getSelected());
   const sourceSet = new Set(ms.source.getSelected());
+  const modelSet = new Set(ms.model.getSelected());
+  const handSet = new Set(ms.hand.getSelected());
+  const isCars = activeCat.id === 'cars';
+  const yearMin = isCars ? parseInt(controls.yearMin.value, 10) : NaN;
+  const yearMax = isCars ? parseInt(controls.yearMax.value, 10) : NaN;
+  const maxKm = isCars ? parsePrice(controls.maxKm.value) : null;
   const condition = controls.condition.value;
   const min = parsePrice(controls.minPrice.value);
   const max = parsePrice(controls.maxPrice.value);
@@ -510,6 +545,12 @@ function applyFilters() {
     if (brandSet.size && !brandSet.has(w.brand)) return false;
     if (countrySet.size && !countrySet.has(w.country)) return false;
     if (sourceSet.size && !sourceSet.has(w.source)) return false;
+    if (modelSet.size && !modelSet.has(w.model)) return false;
+    if (handSet.size && !handSet.has(w.hand)) return false;
+    // Car range filters: listings missing the value pass (same rule as price).
+    if (yearMin && w.year && w.year < yearMin) return false;
+    if (yearMax && w.year && w.year > yearMax) return false;
+    if (maxKm != null && w.km != null && w.km > maxKm) return false;
     if (condition && w.condition !== condition) return false;
     if (onlyPriced && w.priceUsd == null && w.priceNis == null) return false;
     // The price range only filters listings that HAVE a price. Unpriced ones
@@ -521,7 +562,7 @@ function applyFilters() {
     if (fromMs != null && !(w.time && w.time >= fromMs)) return false;
     if (toMs != null && !(w.time && w.time <= toMs)) return false;
     if (q || exTerms.length) {
-      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country}`.toLowerCase();
+      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.location || ''}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
       if (exTerms.length && exTerms.some((term) => hay.includes(term))) return false;
     }
@@ -574,25 +615,51 @@ async function loadData(cat) {
     if (!ts || ts.toLowerCase() === 'timestamp') continue;
     const u = col(row, 'url');
     if (!u) continue;
-    out.push({
-      timestamp: ts, time: Date.parse(ts) || 0,
-      source: col(row, 'source'),
-      country: col(row, 'country'),
-      brand: col(row, 'brand') || 'Unknown',
-      model: col(row, 'model'),
-      priceUsd: parsePrice(col(row, 'price_usd')),
-      priceNis: parsePrice(col(row, 'price_nis')),
-      url: u,
-      image: col(row, 'image_url'),
-      description: col(row, 'description'),
-      condition: col(row, 'condition'),
-    });
+    out.push(cat.parseRow((name) => col(row, name), ts));
   }
   return out;
 }
 
+// Row mappers: `get(header)` reads one cell by header name. Both return the
+// common item shape the filters/sort use (brand, model, source, priceNis, …).
+function parseWatchRow(get, ts) {
+  return {
+    timestamp: ts, time: Date.parse(ts) || 0,
+    source: get('source'),
+    country: get('country'),
+    brand: get('brand') || 'Unknown',
+    model: get('model'),
+    priceUsd: parsePrice(get('price_usd')),
+    priceNis: parsePrice(get('price_nis')),
+    url: get('url'),
+    image: get('image_url'),
+    description: get('description'),
+    condition: get('condition'),
+  };
+}
+
+function parseCarRow(get, ts) {
+  const num = (v) => { const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? n : null; };
+  return {
+    timestamp: ts, time: Date.parse(ts) || 0,
+    source: get('source'),
+    country: '', condition: '',
+    brand: get('brand') || 'Unknown',
+    model: get('model'),
+    priceUsd: null,
+    priceNis: parsePrice(get('price_nis')),
+    url: get('url'),
+    image: get('image_url'),
+    description: get('trim'),
+    year: num(get('year')),
+    km: num(get('mileage_km')),
+    hand: get('hand'),
+    location: get('location'),
+  };
+}
+
 // ---- Render ----
-function cardHtml(w) {
+function watchCardHtml(w) {
   const imgUrl = safeUrl(w.image);
   const linkUrl = safeUrl(w.url);
   const img = imgUrl
@@ -633,6 +700,41 @@ function cardHtml(w) {
   </${cardTag}>`;
 }
 
+const fmtInt = new Intl.NumberFormat('en-US');
+function carCardHtml(c) {
+  const imgUrl = safeUrl(c.image);
+  const linkUrl = safeUrl(c.url);
+  const title = `${c.brand} ${c.model}`.trim();
+  const img = imgUrl
+    ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+       <div class="no-img" style="display:none">🚗</div>`
+    : `<div class="no-img">🚗</div>`;
+  const yearBadge = c.year ? `<span class="badge-condition">${c.year}</span>` : '';
+  const price = c.priceNis != null
+    ? `<span class="price nis">${fmtNIS.format(c.priceNis)}</span>`
+    : `<span class="price-none">${escapeHtml(t('priceOnRequest'))}</span>`;
+  const row = (label, val) => val ? `<div class="row"><span class="label">${escapeHtml(t(label))}</span><span class="val">${escapeHtml(val)}</span></div>` : '';
+  const cardTag = linkUrl ? 'a' : 'div';
+  const hrefAttr = linkUrl ? ` href="${escapeHtml(linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
+  return `
+  <${cardTag} class="card"${hrefAttr}>
+    <div class="card-img-wrap">${img}${yearBadge}</div>
+    <div class="card-body">
+      <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
+      <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
+      <div class="price-row">${price}</div>
+      <div class="card-meta">
+        ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
+        ${row('metaHand', c.hand)}
+        ${row('metaSource', c.source || '—')}
+        ${row('metaLocation', c.location)}
+        ${row('metaListed', fmtDate(c.timestamp))}
+        <div class="open-hint">${escapeHtml(t('openListing'))}</div>
+      </div>
+    </div>
+  </${cardTag}>`;
+}
+
 function render() {
   const total = VIEW.length;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -641,7 +743,7 @@ function render() {
   const slice = VIEW.slice(start, start + PAGE_SIZE);
 
   el('emptyState').hidden = total !== 0;
-  grid.innerHTML = slice.map(cardHtml).join('');
+  grid.innerHTML = slice.map(activeCat.card).join('');
 
   el('resultsSummary').textContent = total
     ? t('results', { a: start + 1, b: start + slice.length, n: total.toLocaleString() })
@@ -678,6 +780,14 @@ function renderPagination(pages) {
 }
 
 // ---- URL state ----
+// Car-only filters (model, hand, year range, max km) → query params.
+function appendCarParams(p) {
+  if (activeCat.id !== 'cars') return;
+  ms.model.getSelected().forEach((v) => p.append('model', v));
+  ms.hand.getSelected().forEach((v) => p.append('hand', v));
+  NUM_KEYS.forEach((k) => { if (controls[k].value) p.set(k, controls[k].value); });
+}
+
 function syncUrl() {
   const p = new URLSearchParams();
   if (lang !== 'he') p.set('lang', lang);
@@ -687,6 +797,7 @@ function syncUrl() {
   ms.brand.getSelected().forEach((v) => p.append('brand', v));
   ms.country.getSelected().forEach((v) => p.append('country', v));
   ms.source.getSelected().forEach((v) => p.append('source', v));
+  appendCarParams(p);
   if (controls.condition.value) p.set('condition', controls.condition.value);
   if (controls.minPrice.value) p.set('min', controls.minPrice.value);
   if (controls.maxPrice.value) p.set('max', controls.maxPrice.value);
@@ -707,6 +818,9 @@ function restoreFromUrl() {
   if (p.has('brand')) ms.brand.setSelected(p.getAll('brand'));
   if (p.has('country')) ms.country.setSelected(p.getAll('country'));
   if (p.has('source')) ms.source.setSelected(p.getAll('source'));
+  if (p.has('model')) ms.model.setSelected(p.getAll('model'));
+  if (p.has('hand')) ms.hand.setSelected(p.getAll('hand'));
+  NUM_KEYS.forEach((k) => set(controls[k], k));
   set(controls.condition, 'condition');
   set(controls.minPrice, 'min');
   set(controls.maxPrice, 'max');
@@ -770,6 +884,7 @@ function currentFilterQuery() {
   ms.brand.getSelected().forEach((v) => p.append('brand', v));
   ms.country.getSelected().forEach((v) => p.append('country', v));
   ms.source.getSelected().forEach((v) => p.append('source', v));
+  appendCarParams(p);
   if (controls.condition.value) p.set('condition', controls.condition.value);
   if (controls.minPrice.value) p.set('min', controls.minPrice.value);
   if (controls.maxPrice.value) p.set('max', controls.maxPrice.value);
@@ -787,6 +902,9 @@ function applyFilterQuery(qs) {
   ms.brand.setSelected(p.getAll('brand'));
   ms.country.setSelected(p.getAll('country'));
   ms.source.setSelected(p.getAll('source'));
+  ms.model.setSelected(p.getAll('model'));
+  ms.hand.setSelected(p.getAll('hand'));
+  NUM_KEYS.forEach((k) => { controls[k].value = p.get(k) || ''; });
   controls.condition.value = p.get('condition') || '';
   controls.minPrice.value = p.get('min') || '';
   controls.maxPrice.value = p.get('max') || '';
@@ -805,6 +923,10 @@ function describeQuery(qs) {
   const b = p.getAll('brand'); if (b.length) parts.push(b.join(', '));
   const c = p.getAll('country'); if (c.length) parts.push(c.map((x) => displayVal('country', x)).join(', '));
   const s = p.getAll('source'); if (s.length) parts.push(s.join(', '));
+  const m = p.getAll('model'); if (m.length) parts.push(m.join(', '));
+  const h = p.getAll('hand'); if (h.length) parts.push(h.map((n) => t('handN', { n })).join(', '));
+  if (p.get('yearMin') || p.get('yearMax')) parts.push((p.get('yearMin') || '…') + '–' + (p.get('yearMax') || '…'));
+  if (p.get('maxKm')) parts.push('≤' + fmtInt.format(p.get('maxKm')) + ' km');
   if (p.get('condition')) parts.push(displayVal('condition', p.get('condition')));
   if (p.get('q')) parts.push('“' + p.get('q') + '”');
   if (p.get('qx')) parts.push('−' + p.get('qx'));
@@ -904,6 +1026,7 @@ function bindEvents() {
   controls.q.addEventListener('input', debounced);
   controls.minPrice.addEventListener('input', debounced);
   controls.maxPrice.addEventListener('input', debounced);
+  NUM_KEYS.forEach((k) => controls[k].addEventListener('input', debounced));
   ['condition', 'sort', 'dateFrom', 'dateTo'].forEach((k) => controls[k].addEventListener('change', applyFilters));
   controls.hasPrice.addEventListener('change', applyFilters);
 
@@ -918,10 +1041,11 @@ function bindEvents() {
     controls.condition.value = '';
     controls.minPrice.value = '';
     controls.maxPrice.value = '';
+    NUM_KEYS.forEach((k) => { controls[k].value = ''; });
     setDefaultDates(); // reset restores the default last-3-months range
     controls.sort.value = 'date_desc';
     controls.hasPrice.checked = false;
-    ms.brand.clear(); ms.country.clear(); ms.source.clear();
+    MS_KEYS.forEach((k) => ms[k].clear());
     applyFilters();
   });
 }
@@ -1094,6 +1218,7 @@ function init() {
   // Default to the last 3 months unless the URL explicitly carries a date range.
   if (!p.has('from') && !p.has('to')) setDefaultDates();
 
+  applyCatVisibility();
   setLanguage(startLang, { rerender: false }); // sets dir/lang/static text before data
   restoreFromUrl();
   loadActive();

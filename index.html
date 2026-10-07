@@ -7,7 +7,7 @@
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
   <link rel="preconnect" href="https://www.hebcal.com" />
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
   <header class="site-header">
@@ -51,7 +51,11 @@
         <label data-i18n="brandLabel">Brand</label>
         <div class="ms" data-ms="brand"></div>
       </div>
-      <div class="filter-field">
+      <div class="filter-field" data-only="cars" hidden>
+        <label data-i18n="modelLabel">Model</label>
+        <div class="ms" data-ms="model"></div>
+      </div>
+      <div class="filter-field" data-only="watches">
         <label data-i18n="countryLabel">Country</label>
         <div class="ms" data-ms="country"></div>
       </div>
@@ -59,7 +63,11 @@
         <label data-i18n="sourceLabel">Source</label>
         <div class="ms" data-ms="source"></div>
       </div>
-      <div class="filter-field">
+      <div class="filter-field" data-only="cars" hidden>
+        <label data-i18n="handLabel">Hand</label>
+        <div class="ms" data-ms="hand"></div>
+      </div>
+      <div class="filter-field" data-only="watches">
         <label for="condition" data-i18n="conditionLabel">Condition</label>
         <select id="condition"><option value="" data-i18n="anyCondition">Any condition</option></select>
       </div>
@@ -70,6 +78,18 @@
       <div class="filter-field narrow">
         <label for="maxPrice" data-i18n="maxPrice">Max $</label>
         <input type="number" id="maxPrice" min="0" step="500" placeholder="∞" inputmode="numeric" />
+      </div>
+      <div class="filter-field narrow" data-only="cars" hidden>
+        <label for="yearMin" data-i18n="yearFrom">Year from</label>
+        <input type="number" id="yearMin" min="1990" max="2100" placeholder="2017" inputmode="numeric" />
+      </div>
+      <div class="filter-field narrow" data-only="cars" hidden>
+        <label for="yearMax" data-i18n="yearTo">Year to</label>
+        <input type="number" id="yearMax" min="1990" max="2100" placeholder="2022" inputmode="numeric" />
+      </div>
+      <div class="filter-field narrow" data-only="cars" hidden>
+        <label for="maxKm" data-i18n="maxKm">Max km</label>
+        <input type="number" id="maxKm" min="0" step="10000" placeholder="∞" inputmode="numeric" />
       </div>
       <div class="filter-field">
         <label for="dateFrom" data-i18n="dateFromLabel">From date</label>
@@ -127,6 +147,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
