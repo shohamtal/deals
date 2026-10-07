@@ -713,3 +713,25 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 
 /* Per-tab filter fields (data-only) are toggled with [hidden]; beat .filter-field's display:flex. */
 .filter-field[hidden] { display: none; }
+
+/* ---- Car colours: dots, edit mode palette, dialog ---- */
+.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 5px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+[hidden].edit-btn, .edit-bar[hidden] { display: none; }
+.edit-btn { margin-inline-start: auto; margin-inline-end: 10px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border, #ddd); background: var(--surface, #fff); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.edit-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; background: #fff4d6; border: 1px solid #e0b54a; color: #3a2d06; }
+.edit-bar .edit-hint { color: #7a6420; font-size: .9rem; }
+.edit-bar .reset-btn { margin-inline-start: auto; }
+.palette { position: absolute; inset-inline: 8px; bottom: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; padding: 7px; border-radius: 999px; background: rgba(255,255,255,.93); box-shadow: 0 2px 10px rgba(0,0,0,.18); z-index: 2; }
+.palette.saving { opacity: .5; pointer-events: none; }
+.palette.done { font-weight: 700; color: #1c1b19; align-items: center; gap: 4px; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); cursor: pointer; padding: 0; }
+.swatch:hover { transform: scale(1.15); }
+.card.edited { opacity: .55; }
+.edit-dialog { border: 1px solid var(--border, #ddd); border-radius: 14px; padding: 18px; min-width: 280px; background: var(--surface, #fff); color: inherit; }
+.edit-dialog::backdrop { background: rgba(0,0,0,.35); }
+.edit-dialog h3 { margin: 0 0 12px; }
+.edit-dialog input[type=password] { width: 100%; box-sizing: border-box; padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border, #ddd); font: inherit; }
+.edit-opt { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--border, #ddd); border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+.edit-opt small { margin-inline-start: auto; color: var(--text-faint, #888); }
+.edit-err { color: #b42318; min-height: 1.2em; margin: 4px 0 10px; font-size: .9rem; }
+.edit-actions { display: flex; justify-content: flex-end; gap: 8px; }

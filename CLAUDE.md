@@ -50,6 +50,12 @@ Only the **USD** and **NIS (₪)** prices are ever shown; the sheet's other curr
 - **Shabbat gate** — `boot()` runs before `init()`. It checks the Hebcal Shabbat feed (Jerusalem candle-lighting → havdalah, compared as absolute instants so it closes for all visitors during Israel's Shabbat), and if inside the window replaces the page with the candle screen and schedules a reload after havdalah. It **fails open** (shows the site) if Hebcal is unreachable. `boot()` is the entry point at the bottom of the file, not `init()`.
 - **Custom dropdowns** — brand/country/source use `createMultiSelect` (checkbox + search popup); language and saved-searches are similar popups. All are closed by one shared document-click handler in `setupMultiSelects`.
 
+## Car colours & edit mode (the only write path)
+
+- Cars carry `exterior` (scraped by web-automation2 for Freesbe/OPL, column `exterior_color`) and `seat`. Manual values live in the **`cars-notes`** tab (`gid=154560499`, one row per licence `plate`), joined in `joinNotes()`; a note overrides the scraped value. Filters `ext`/`seat` include `__none` = unknown. There is deliberately no "hidden" flag — choosing a seat colour that the saved filter excludes is what hides a car; rows are never deleted (price history).
+- **Writes** go only through the Apps Script web app in `apps-script/notes.gs` (bound to the sheet, runs as the owner, checks `EDIT_PASSWORD` from Script Properties, whitelists field/value). The site POSTs text/plain JSON to `NOTES_ENDPOINT` (no CORS preflight). The password is kept in `localStorage` (`deals-edit-pw`) after a successful `ping`.
+- ✏️ Edit (Cars only) → pick exterior/seat → the grid shows only cars missing that value, each with a palette; a tap saves and fades the card (it isn't re-filtered under the finger).
+
 ## Gotchas
 
 - Content derived from the sheet is untrusted: always route text through `escapeHtml` and any `href`/`src` through `safeUrl` (blocks `javascript:`/`data:`).

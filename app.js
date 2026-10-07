@@ -27,11 +27,27 @@ const CATEGORIES = [
     label: { he: 'מכוניות', en: 'Cars' },
     sheetId: '1jbke0dmA01rr-eTtHJ7GHZK4ULVIXi3dlR1P9k5BUWc',
     gid: '140391439', // "cars" tab, written by web-automation2's cars finder
+    notesGid: '154560499', // "cars-notes" tab: manual colours by plate (see apps-script/notes.gs)
     headerMap: {},
     parseRow: parseCarRow,
     card: carCardHtml,
   },
 ];
+
+// ---- Car colour notes (edit mode) ----
+// The site stays read-only; edits go to an Apps Script web app that checks a
+// password and writes the "cars-notes" tab. Empty → the ✏️ button explains setup.
+const NOTES_ENDPOINT = '';
+const PW_KEY = 'deals-edit-pw';
+const COLOR_FIELDS = {
+  exterior: { key: 'exterior', field: 'exterior_color', icon: '🎨', values: ['white', 'black', 'silver', 'grey', 'blue', 'red', 'other'] },
+  seat: { key: 'seat', field: 'seat_color', icon: '💺', values: ['black', 'white', 'brown', 'other'] },
+};
+const SWATCH = {
+  white: '#ffffff', black: '#151515', silver: '#c3c7cc', grey: '#6b7078', blue: '#2453a6',
+  red: '#b3121f', brown: '#7a4a26', other: 'conic-gradient(#e44,#fc3,#4c4,#39f,#c4f,#e44)',
+};
+const UNKNOWN = '__none'; // filter value for "no colour recorded yet"
 // Filter fields marked data-only="<cat id>" in index.html show only on that tab.
 
 const PAGE_SIZE = 50;
@@ -78,6 +94,14 @@ const I18N = {
       modelLabel: 'דגם', allModels: 'כל הדגמים', handLabel: 'יד', allHands: 'כל הידיים', handN: 'יד {n}',
       yearFrom: 'משנתון', yearTo: 'עד שנתון', maxKm: 'עד ק״מ',
       metaYear: 'שנתון', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
+      extLabel: 'צבע חיצוני', seatLabel: 'צבע מושבים', allExt: 'כל הצבעים', allSeat: 'כל הצבעים',
+      color_white: 'לבן', color_black: 'שחור', color_silver: 'כסוף', color_grey: 'אפור', color_blue: 'כחול',
+      color_red: 'אדום', color_brown: 'חום', color_other: 'אחר', colorUnknown: 'לא ידוע',
+      editBtn: '✏️ עריכה', editTitle: 'מה לערוך?', editPw: 'סיסמה', editStart: 'התחלה', editCancel: 'ביטול',
+      editMissing: '{n} חסרים', editDone: 'סיום', editLeft: '{n} נותרו',
+      editSeatHint: 'לחיצה על הכרטיס פותחת את המודעה עם כל התמונות',
+      editBadPw: 'סיסמה שגויה', editNoEndpoint: 'העריכה עוד לא הוגדרה (חסר NOTES_ENDPOINT).',
+      editSaveFail: 'השמירה נכשלה: {e}',
     },
   },
   en: {
@@ -116,6 +140,14 @@ const I18N = {
       modelLabel: 'Model', allModels: 'All models', handLabel: 'Hand', allHands: 'Any hand', handN: 'Hand {n}',
       yearFrom: 'Year from', yearTo: 'Year to', maxKm: 'Max km',
       metaYear: 'Year', metaKm: 'Km', metaHand: 'Hand', metaLocation: 'Location',
+      extLabel: 'Exterior', seatLabel: 'Seats', allExt: 'All colors', allSeat: 'All colors',
+      color_white: 'White', color_black: 'Black', color_silver: 'Silver', color_grey: 'Grey', color_blue: 'Blue',
+      color_red: 'Red', color_brown: 'Brown', color_other: 'Other', colorUnknown: 'Unknown',
+      editBtn: '✏️ Edit', editTitle: 'What to edit?', editPw: 'Password', editStart: 'Start', editCancel: 'Cancel',
+      editMissing: '{n} missing', editDone: 'Done', editLeft: '{n} left',
+      editSeatHint: 'Tap a card to open the listing with all its photos',
+      editBadPw: 'Wrong password', editNoEndpoint: 'Editing is not set up yet (NOTES_ENDPOINT is empty).',
+      editSaveFail: 'Save failed: {e}',
     },
   },
 };
@@ -413,7 +445,7 @@ function setupExclude() {
   excludeChips = createChipsInput(el('qx'), { onChange: applyFilters });
 }
 
-const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands' };
+const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat' };
 const MS_KEYS = Object.keys(MS_ALL_KEY);
 const NUM_KEYS = ['yearMin', 'yearMax', 'maxKm']; // car-only number inputs (URL keys match)
 function msTexts() {
@@ -474,6 +506,7 @@ function updateTagline() {
 async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
+  editMode = null;
   ['q', 'condition', 'minPrice', 'maxPrice', ...NUM_KEYS].forEach((k) => { if (controls[k]) controls[k].value = ''; });
   excludeChips.clear();
   setDefaultDates();
@@ -513,6 +546,14 @@ function buildFilters() {
   ms.model.setOptions(toOpts('model'));
   ms.hand.setOptions(counted('hand').sort((a, b) => a[0] - b[0])
     .map(([value, count]) => ({ value, count, label: t('handN', { n: value }) })));
+  ['exterior', 'seat'].forEach((k) => {
+    const m = new Map();
+    ALL.forEach((x) => { const v = x[k] || UNKNOWN; m.set(v, (m.get(v) || 0) + 1); });
+    const order = [...COLOR_FIELDS[k].values, UNKNOWN];
+    ms[k === 'exterior' ? 'ext' : 'seat'].setOptions([...m.entries()]
+      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+      .map(([value, count]) => ({ value, count, label: colorLabel(value) })));
+  });
 
   const condVal = controls.condition.value;
   fillSelect(controls.condition, counted('condition').map(([value]) => ({ value, label: displayVal('condition', value) })));
@@ -531,6 +572,8 @@ function applyFilters() {
   const sourceSet = new Set(ms.source.getSelected());
   const modelSet = new Set(ms.model.getSelected());
   const handSet = new Set(ms.hand.getSelected());
+  const extSet = new Set(ms.ext.getSelected());
+  const seatSet = new Set(ms.seat.getSelected());
   const isCars = activeCat.id === 'cars';
   const yearMin = isCars ? parseInt(controls.yearMin.value, 10) : NaN;
   const yearMax = isCars ? parseInt(controls.yearMax.value, 10) : NaN;
@@ -549,6 +592,10 @@ function applyFilters() {
     if (sourceSet.size && !sourceSet.has(w.source)) return false;
     if (modelSet.size && !modelSet.has(w.model)) return false;
     if (handSet.size && !handSet.has(w.hand)) return false;
+    if (extSet.size && !extSet.has(w.exterior || UNKNOWN)) return false;
+    if (seatSet.size && !seatSet.has(w.seat || UNKNOWN)) return false;
+    // Edit mode shows only cars still missing the colour being edited.
+    if (editMode && w[editMode]) return false;
     // Car range filters: listings missing the value pass (same rule as price).
     if (yearMin && w.year && w.year < yearMin) return false;
     if (yearMax && w.year && w.year > yearMax) return false;
@@ -621,7 +668,31 @@ async function loadData(cat) {
     if (!u) continue;
     out.push(cat.parseRow((name) => col(row, name), ts));
   }
+  if (cat.notesGid) await joinNotes(cat, out);
   return out;
+}
+
+// Merge the "cars-notes" tab (manual colours, keyed by licence plate) into the
+// cars. A manual value wins over a scraped one. Never fails the main load.
+async function joinNotes(cat, cars) {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${cat.sheetId}/export?format=csv&gid=${cat.notesGid}&_=${Date.now()}`;
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = parseCSV(await res.text());
+    const h = (rows[0] || []).map((x) => String(x).trim());
+    const iP = h.indexOf('plate'), iE = h.indexOf('exterior_color'), iS = h.indexOf('seat_color');
+    const notes = new Map();
+    rows.slice(1).forEach((r) => { if (r[iP]) notes.set(String(r[iP]).trim(), r); });
+    cars.forEach((c) => {
+      const n = notes.get(c.plate);
+      if (!n) return;
+      if (iE >= 0 && n[iE]) c.exterior = String(n[iE]).trim();
+      if (iS >= 0 && n[iS]) c.seat = String(n[iS]).trim();
+    });
+  } catch (err) {
+    console.error('cars-notes load failed; showing scraped colours only', err);
+  }
 }
 
 // Row mappers: `get(header)` reads one cell by header name. Both return the
@@ -659,6 +730,9 @@ function parseCarRow(get, ts) {
     km: num(get('mileage_km')),
     hand: get('hand'),
     location: get('location'),
+    plate: get('car_number'),
+    exterior: get('exterior_color'), // scraped (Freesbe/OPL); cars-notes overrides
+    seat: '',
   };
 }
 
@@ -718,11 +792,18 @@ function carCardHtml(c) {
     ? `<span class="price nis">${fmtNIS.format(c.priceNis)}</span>`
     : `<span class="price-none">${escapeHtml(t('priceOnRequest'))}</span>`;
   const row = (label, val) => val ? `<div class="row"><span class="label">${escapeHtml(t(label))}</span><span class="val">${escapeHtml(val)}</span></div>` : '';
+  const colorRow = (label, v) => v
+    ? `<div class="row"><span class="label">${escapeHtml(t(label))}</span><span class="val"><span class="color-dot" style="background:${SWATCH[v] || '#ccc'}"></span>${escapeHtml(colorLabel(v))}</span></div>`
+    : '';
+  const palette = editMode && !c[editMode] && c.plate
+    ? `<div class="palette" data-plate="${escapeHtml(c.plate)}">${COLOR_FIELDS[editMode].values.map((v) =>
+        `<button type="button" class="swatch" data-v="${v}" title="${escapeHtml(colorLabel(v))}" style="background:${SWATCH[v]}"></button>`).join('')}</div>`
+    : '';
   const cardTag = linkUrl ? 'a' : 'div';
   const hrefAttr = linkUrl ? ` href="${escapeHtml(linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
   return `
   <${cardTag} class="card"${hrefAttr}>
-    <div class="card-img-wrap">${img}${yearBadge}</div>
+    <div class="card-img-wrap">${img}${yearBadge}${palette}</div>
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
@@ -731,6 +812,8 @@ function carCardHtml(c) {
         ${row('metaYear', c.year ? String(c.year) : '')}
         ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
         ${row('metaHand', c.hand)}
+        ${colorRow('extLabel', c.exterior)}
+        ${colorRow('seatLabel', c.seat)}
         ${row('metaSource', c.source || '—')}
         ${row('metaLocation', c.location)}
         ${row('metaListed', fmtDate(c.timestamp))}
@@ -755,7 +838,105 @@ function render() {
     : '';
 
   renderPagination(pages);
+  renderEditBar();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---- Edit mode (car colours) ----
+let editMode = null; // null | 'exterior' | 'seat' — the item key being filled in
+
+function colorLabel(v) { return v === UNKNOWN ? t('colorUnknown') : t('color_' + v); }
+function missingCount(k) { return ALL.filter((c) => !c[k] && c.plate).length; }
+
+async function postNote(body) {
+  if (!NOTES_ENDPOINT) throw new Error(t('editNoEndpoint'));
+  // text/plain body = "simple" CORS request (no preflight), which Apps Script supports.
+  const res = await fetch(NOTES_ENDPOINT, { method: 'POST', body: JSON.stringify(body) });
+  const out = await res.json();
+  if (!out.ok) throw new Error(out.error === 'bad password' ? t('editBadPw') : out.error);
+  return out;
+}
+
+function getPw() { try { return localStorage.getItem(PW_KEY) || ''; } catch (_) { return ''; } }
+function setPw(v) { try { v ? localStorage.setItem(PW_KEY, v) : localStorage.removeItem(PW_KEY); } catch (_) {} }
+
+function openEditDialog() {
+  const dlg = el('editDialog');
+  el('editPw').value = getPw();
+  el('editErr').textContent = NOTES_ENDPOINT ? '' : t('editNoEndpoint');
+  dlg.querySelectorAll('[data-missing]').forEach((n) => {
+    n.textContent = t('editMissing', { n: missingCount(n.dataset.missing) });
+  });
+  dlg.showModal();
+}
+
+async function startEdit() {
+  const pw = el('editPw').value.trim();
+  const which = (el('editDialog').querySelector('input[name="editWhich"]:checked') || {}).value || 'exterior';
+  el('editErr').textContent = '';
+  el('editStart').disabled = true;
+  try {
+    await postNote({ password: pw, action: 'ping' });
+    setPw(pw);
+    el('editDialog').close();
+    editMode = which;
+    applyFilters();
+  } catch (err) {
+    el('editErr').textContent = err.message;
+  } finally {
+    el('editStart').disabled = false;
+  }
+}
+
+function stopEdit() { editMode = null; applyFilters(); }
+
+function renderEditBar() {
+  const bar = el('editBar');
+  if (!bar) return;
+  bar.hidden = !editMode;
+  if (!editMode) return;
+  const f = COLOR_FIELDS[editMode];
+  el('editBarLabel').textContent = `${f.icon} ${t(editMode === 'exterior' ? 'extLabel' : 'seatLabel')} · ${t('editLeft', { n: missingCount(editMode) })}`;
+  el('editBarHint').textContent = editMode === 'seat' ? t('editSeatHint') : '';
+}
+
+// One tap on a swatch: save, then update every listing of that plate in place.
+// The card stays (faded) instead of vanishing under the finger; it drops out
+// of the edit view on the next filter change.
+async function onSwatch(btn) {
+  const pal = btn.closest('.palette');
+  const plate = pal.dataset.plate;
+  const value = btn.dataset.v;
+  const key = editMode;
+  pal.classList.add('saving');
+  try {
+    await postNote({ password: getPw(), action: 'set', plate, field: COLOR_FIELDS[key].field, value });
+    ALL.forEach((c) => { if (c.plate === plate) c[key] = value; });
+    const card = pal.closest('.card');
+    card.classList.add('edited');
+    pal.outerHTML = `<div class="palette done"><span class="color-dot" style="background:${SWATCH[value]}"></span>${escapeHtml(colorLabel(value))} ✓</div>`;
+    buildFilters();
+    renderEditBar();
+  } catch (err) {
+    pal.classList.remove('saving');
+    alert(t('editSaveFail', { e: err.message }));
+    if (err.message === t('editBadPw')) { setPw(''); stopEdit(); }
+  }
+}
+
+function setupEdit() {
+  el('editBtn').addEventListener('click', openEditDialog);
+  el('editStart').addEventListener('click', startEdit);
+  el('editCancel').addEventListener('click', () => el('editDialog').close());
+  el('editStop').addEventListener('click', stopEdit);
+  // Swatches sit inside the card's <a>: stop the tap from opening the listing.
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('.swatch');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSwatch(btn);
+  });
 }
 
 function renderPagination(pages) {
@@ -790,6 +971,8 @@ function appendCarParams(p) {
   if (activeCat.id !== 'cars') return;
   ms.model.getSelected().forEach((v) => p.append('model', v));
   ms.hand.getSelected().forEach((v) => p.append('hand', v));
+  ms.ext.getSelected().forEach((v) => p.append('ext', v));
+  ms.seat.getSelected().forEach((v) => p.append('seat', v));
   NUM_KEYS.forEach((k) => { if (controls[k].value) p.set(k, controls[k].value); });
 }
 
@@ -825,6 +1008,8 @@ function restoreFromUrl() {
   if (p.has('source')) ms.source.setSelected(p.getAll('source'));
   if (p.has('model')) ms.model.setSelected(p.getAll('model'));
   if (p.has('hand')) ms.hand.setSelected(p.getAll('hand'));
+  if (p.has('ext')) ms.ext.setSelected(p.getAll('ext'));
+  if (p.has('seat')) ms.seat.setSelected(p.getAll('seat'));
   NUM_KEYS.forEach((k) => set(controls[k], k));
   set(controls.condition, 'condition');
   set(controls.minPrice, 'min');
@@ -909,6 +1094,8 @@ function applyFilterQuery(qs) {
   ms.source.setSelected(p.getAll('source'));
   ms.model.setSelected(p.getAll('model'));
   ms.hand.setSelected(p.getAll('hand'));
+  ms.ext.setSelected(p.getAll('ext'));
+  ms.seat.setSelected(p.getAll('seat'));
   NUM_KEYS.forEach((k) => { controls[k].value = p.get(k) || ''; });
   controls.condition.value = p.get('condition') || '';
   controls.minPrice.value = p.get('min') || '';
@@ -930,6 +1117,8 @@ function describeQuery(qs) {
   const s = p.getAll('source'); if (s.length) parts.push(s.join(', '));
   const m = p.getAll('model'); if (m.length) parts.push(m.join(', '));
   const h = p.getAll('hand'); if (h.length) parts.push(h.map((n) => t('handN', { n })).join(', '));
+  const ex = p.getAll('ext'); if (ex.length) parts.push(t('extLabel') + ': ' + ex.map(colorLabel).join(', '));
+  const se = p.getAll('seat'); if (se.length) parts.push(t('seatLabel') + ': ' + se.map(colorLabel).join(', '));
   if (p.get('yearMin') || p.get('yearMax')) parts.push((p.get('yearMin') || '…') + '–' + (p.get('yearMax') || '…'));
   if (p.get('maxKm')) parts.push('≤' + fmtInt.format(p.get('maxKm')) + ' km');
   if (p.get('condition')) parts.push(displayVal('condition', p.get('condition')));
@@ -1209,6 +1398,7 @@ function init() {
   setupExclude();
   setupLang();
   setupSaved();
+  setupEdit();
   bindEvents();
 
   const p = new URLSearchParams(location.search);

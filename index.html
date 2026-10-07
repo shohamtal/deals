@@ -7,7 +7,7 @@
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
   <link rel="preconnect" href="https://www.hebcal.com" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
 </head>
 <body>
   <header class="site-header">
@@ -66,6 +66,14 @@
       <div class="filter-field" data-only="cars" hidden>
         <label data-i18n="handLabel">Hand</label>
         <div class="ms" data-ms="hand"></div>
+      </div>
+      <div class="filter-field" data-only="cars" hidden>
+        <label data-i18n="extLabel">Exterior</label>
+        <div class="ms" data-ms="ext"></div>
+      </div>
+      <div class="filter-field" data-only="cars" hidden>
+        <label data-i18n="seatLabel">Seats</label>
+        <div class="ms" data-ms="seat"></div>
       </div>
       <div class="filter-field" data-only="watches">
         <label for="condition" data-i18n="conditionLabel">Condition</label>
@@ -130,12 +138,31 @@
   <main>
     <div class="results-bar">
       <span id="resultsSummary" class="results-summary"></span>
+      <button type="button" id="editBtn" class="edit-btn" data-only="cars" hidden data-i18n="editBtn">✏️ Edit</button>
       <span id="onlyWithPrice" class="chip-toggle">
         <label><input type="checkbox" id="hasPriceChk" /> <span data-i18n="onlyPriced">Only listings with a price</span></label>
       </span>
     </div>
 
+    <div id="editBar" class="edit-bar" hidden>
+      <strong id="editBarLabel"></strong>
+      <span id="editBarHint" class="edit-hint"></span>
+      <button type="button" id="editStop" class="reset-btn" data-i18n="editDone">Done</button>
+    </div>
+
     <div id="grid" class="grid" aria-live="polite"></div>
+
+    <dialog id="editDialog" class="edit-dialog">
+      <h3 data-i18n="editTitle">What to edit?</h3>
+      <input type="password" id="editPw" data-i18n-ph="editPw" autocomplete="current-password" />
+      <label class="edit-opt"><input type="radio" name="editWhich" value="exterior" checked> 🎨 <span data-i18n="extLabel">Exterior</span> <small data-missing="exterior"></small></label>
+      <label class="edit-opt"><input type="radio" name="editWhich" value="seat"> 💺 <span data-i18n="seatLabel">Seats</span> <small data-missing="seat"></small></label>
+      <div id="editErr" class="edit-err"></div>
+      <div class="edit-actions">
+        <button type="button" id="editCancel" class="reset-btn" data-i18n="editCancel">Cancel</button>
+        <button type="button" id="editStart" class="saved-add" data-i18n="editStart">Start</button>
+      </div>
+    </dialog>
 
     <div id="emptyState" class="empty-state" hidden>
       <p data-i18n="empty">No listings match your filters.</p>
@@ -149,6 +176,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
