@@ -59,6 +59,7 @@ const I18N = {
       sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
       sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
       sort_brand_asc: 'מותג · א׳–ת׳',
+      sort_year_desc: 'שנתון · מהחדש לישן', sort_year_asc: 'שנתון · מהישן לחדש',
       reset: 'איפוס', resetTitle: 'ניקוי כל הסינונים',
       themeToggle: 'החלפת מצב תצוגה',
       onlyPriced: 'רק מודעות עם מחיר',
@@ -75,8 +76,8 @@ const I18N = {
       errBody: 'גיליון Google חייב להיות משותף כ״כל מי שיש לו הקישור · צופה״. נסו שוב בעוד רגע.',
       footer: 'תצוגה לקריאה בלבד מתוך גיליון Google חי · הנתונים מתרעננים בכל טעינת עמוד. מחירים מוצגים בדולר ($) ובש״ח (₪) בלבד.',
       modelLabel: 'דגם', allModels: 'כל הדגמים', handLabel: 'יד', allHands: 'כל הידיים', handN: 'יד {n}',
-      yearFrom: 'משנה', yearTo: 'עד שנה', maxKm: 'עד ק״מ',
-      metaYear: 'שנה', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
+      yearFrom: 'משנתון', yearTo: 'עד שנתון', maxKm: 'עד ק״מ',
+      metaYear: 'שנתון', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
     },
   },
   en: {
@@ -96,6 +97,7 @@ const I18N = {
       sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
       sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
       sort_brand_asc: 'Brand · A–Z',
+      sort_year_desc: 'Year · newest first', sort_year_asc: 'Year · oldest first',
       reset: 'Reset', resetTitle: 'Clear all filters',
       themeToggle: 'Toggle light/dark theme',
       onlyPriced: 'Only listings with a price',
@@ -584,6 +586,8 @@ function sortView() {
     price_asc: (a, b) => priceKey(a) - priceKey(b),
     price_desc: (a, b) => (b.priceNis ?? -Infinity) - (a.priceNis ?? -Infinity),
     brand_asc: (a, b) => a.brand.localeCompare(b.brand) || b.time - a.time,
+    year_desc: (a, b) => (b.year || 0) - (a.year || 0) || b.time - a.time,
+    year_asc: (a, b) => (a.year || Infinity) - (b.year || Infinity) || b.time - a.time,
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
 }
@@ -724,6 +728,7 @@ function carCardHtml(c) {
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
       <div class="price-row">${price}</div>
       <div class="card-meta">
+        ${row('metaYear', c.year ? String(c.year) : '')}
         ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
         ${row('metaHand', c.hand)}
         ${row('metaSource', c.source || '—')}
