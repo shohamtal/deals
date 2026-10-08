@@ -7,7 +7,7 @@
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
   <link rel="preconnect" href="https://www.hebcal.com" />
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=19" />
 </head>
 <body>
   <header class="site-header">
@@ -154,6 +154,7 @@
 
     <dialog id="editDialog" class="edit-dialog">
       <h3 data-i18n="editTitle">What to edit?</h3>
+      <input type="url" id="editEndpoint" class="edit-endpoint" data-i18n-ph="editEndpointPh" autocomplete="off" dir="ltr" />
       <input type="password" id="editPw" data-i18n-ph="editPw" autocomplete="current-password" />
       <label class="edit-opt"><input type="radio" name="editWhich" value="exterior" checked> 🎨 <span data-i18n="extLabel">Exterior</span> <small data-missing="exterior"></small></label>
       <label class="edit-opt"><input type="radio" name="editWhich" value="seat"> 💺 <span data-i18n="seatLabel">Seats</span> <small data-missing="seat"></small></label>
@@ -176,6 +177,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>

@@ -36,9 +36,11 @@ const CATEGORIES = [
 
 // ---- Car colour notes (edit mode) ----
 // The site stays read-only; edits go to an Apps Script web app that checks a
-// password and writes the "cars-notes" tab. Empty → the ✏️ button explains setup.
-const NOTES_ENDPOINT = '';
+// password and writes the "cars-notes" tab. The /exec URL is deliberately NOT
+// in the repo: it is entered once per browser in the edit dialog and kept in
+// localStorage next to the password.
 const PW_KEY = 'deals-edit-pw';
+const ENDPOINT_KEY = 'deals-edit-endpoint';
 const COLOR_FIELDS = {
   exterior: { key: 'exterior', field: 'exterior_color', icon: '🎨', values: ['white', 'black', 'silver', 'grey', 'blue', 'red', 'other'] },
   seat: { key: 'seat', field: 'seat_color', icon: '💺', values: ['black', 'white', 'brown', 'other'] },
@@ -100,7 +102,7 @@ const I18N = {
       editBtn: '✏️ עריכה', editTitle: 'מה לערוך?', editPw: 'סיסמה', editStart: 'התחלה', editCancel: 'ביטול',
       editMissing: '{n} חסרים', editDone: 'סיום', editLeft: '{n} נותרו',
       editSeatHint: 'לחיצה על הכרטיס פותחת את המודעה עם כל התמונות',
-      editBadPw: 'סיסמה שגויה', editNoEndpoint: 'העריכה עוד לא הוגדרה (חסר NOTES_ENDPOINT).',
+      editBadPw: 'סיסמה שגויה', editNoEndpoint: 'חסרה כתובת ה‑Apps Script (…/exec).', editEndpointPh: 'כתובת Apps Script (…/exec)',
       editSaveFail: 'השמירה נכשלה: {e}',
     },
   },
@@ -146,7 +148,7 @@ const I18N = {
       editBtn: '✏️ Edit', editTitle: 'What to edit?', editPw: 'Password', editStart: 'Start', editCancel: 'Cancel',
       editMissing: '{n} missing', editDone: 'Done', editLeft: '{n} left',
       editSeatHint: 'Tap a card to open the listing with all its photos',
-      editBadPw: 'Wrong password', editNoEndpoint: 'Editing is not set up yet (NOTES_ENDPOINT is empty).',
+      editBadPw: 'Wrong password', editNoEndpoint: 'Missing the Apps Script URL (…/exec).', editEndpointPh: 'Apps Script URL (…/exec)',
       editSaveFail: 'Save failed: {e}',
     },
   },
@@ -848,22 +850,25 @@ let editMode = null; // null | 'exterior' | 'seat' — the item key being filled
 function colorLabel(v) { return v === UNKNOWN ? t('colorUnknown') : t('color_' + v); }
 function missingCount(k) { return ALL.filter((c) => !c[k] && c.plate).length; }
 
-async function postNote(body) {
-  if (!NOTES_ENDPOINT) throw new Error(t('editNoEndpoint'));
+async function postNote(body, endpoint = getStored(ENDPOINT_KEY)) {
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(endpoint)) throw new Error(t('editNoEndpoint'));
   // text/plain body = "simple" CORS request (no preflight), which Apps Script supports.
-  const res = await fetch(NOTES_ENDPOINT, { method: 'POST', body: JSON.stringify(body) });
+  const res = await fetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
   const out = await res.json();
   if (!out.ok) throw new Error(out.error === 'bad password' ? t('editBadPw') : out.error);
   return out;
 }
 
-function getPw() { try { return localStorage.getItem(PW_KEY) || ''; } catch (_) { return ''; } }
-function setPw(v) { try { v ? localStorage.setItem(PW_KEY, v) : localStorage.removeItem(PW_KEY); } catch (_) {} }
+function getStored(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } }
+function setStored(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (_) {} }
+function getPw() { return getStored(PW_KEY); }
+function setPw(v) { setStored(PW_KEY, v); }
 
 function openEditDialog() {
   const dlg = el('editDialog');
   el('editPw').value = getPw();
-  el('editErr').textContent = NOTES_ENDPOINT ? '' : t('editNoEndpoint');
+  el('editEndpoint').value = getStored(ENDPOINT_KEY);
+  el('editErr').textContent = '';
   dlg.querySelectorAll('[data-missing]').forEach((n) => {
     n.textContent = t('editMissing', { n: missingCount(n.dataset.missing) });
   });
@@ -872,12 +877,14 @@ function openEditDialog() {
 
 async function startEdit() {
   const pw = el('editPw').value.trim();
+  const endpoint = el('editEndpoint').value.trim();
   const which = (el('editDialog').querySelector('input[name="editWhich"]:checked') || {}).value || 'exterior';
   el('editErr').textContent = '';
   el('editStart').disabled = true;
   try {
-    await postNote({ password: pw, action: 'ping' });
+    await postNote({ password: pw, action: 'ping' }, endpoint);
     setPw(pw);
+    setStored(ENDPOINT_KEY, endpoint);
     el('editDialog').close();
     editMode = which;
     applyFilters();
