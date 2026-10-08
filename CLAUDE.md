@@ -59,7 +59,7 @@ Only the **USD** and **NIS (₪)** prices are ever shown; the sheet's other curr
 
 ## Deal score (Cars)
 
-`scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; tooltip shows the expected price. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).
+`scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; hover/tap on the chip opens `dealExplain()`: reference car (2020, 100k km, private, Executive) price, each factor’s % effect, expected vs asking. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).
 
 ## Gotchas
 

@@ -746,3 +746,14 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 .deal-chip.good { color: #15803d; background: rgba(21,128,61,.08); border-color: rgba(21,128,61,.4); }
 .deal-chip.fair { color: var(--text-dim, #555); background: transparent; border-color: var(--border); }
 .deal-chip.high { color: #b42318; background: rgba(180,35,24,.06); border-color: rgba(180,35,24,.35); }
+
+/* Deal explanation popover (hover / focus / tap) */
+.deal-chip { position: relative; }
+.deal-tip { display: none; position: absolute; z-index: 20; bottom: calc(100% + 8px); inset-inline-start: 0; width: 260px; padding: 10px 12px; border-radius: 10px; background: var(--surface, #fff); color: var(--text, #111); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,.18); font-weight: 400; font-size: .82rem; line-height: 1.5; white-space: normal; cursor: default; }
+.deal-chip:hover .deal-tip, .deal-chip:focus .deal-tip, .deal-chip.open .deal-tip { display: block; }
+.dt-row { display: flex; justify-content: space-between; gap: 10px; }
+.dt-row b { font-weight: 700; direction: ltr; }
+.dt-row b.up { color: #15803d; } .dt-row b.down { color: #b42318; }
+.dt-base { color: var(--text-dim, #555); border-bottom: 1px dashed var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.dt-sum { border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; }
+.dt-verdict { display: block; margin-top: 6px; font-weight: 700; }

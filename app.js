@@ -79,7 +79,9 @@ const I18N = {
       sort_brand_asc: 'מותג · א׳–ת׳',
       sort_deal_desc: 'הכי משתלם',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
-      dealTip: 'מחיר צפוי לפי שנתון, ק״מ, בעלות וגרסה: {p}',
+      dxBase: 'בסיס: 2020 · 100 אלף ק״מ · פרטי · Executive', dxYear: 'שנתון {y}', dxKm: '{k} ק״מ',
+      dxLeasing: 'עבר ליסינג', dxRental: 'עבר השכרה / חברה', dxTrim: 'גרסה {tr}',
+      dxExpected: 'מחיר צפוי', dxAsked: 'מחיר מבוקש', dxBelow: '{n}% מתחת למחיר הצפוי', dxAbove: '{n}% מעל המחיר הצפוי',
       sort_year_desc: 'שנתון · מהחדש לישן', sort_year_asc: 'שנתון · מהישן לחדש',
       reset: 'איפוס', resetTitle: 'ניקוי כל הסינונים',
       themeToggle: 'החלפת מצב תצוגה',
@@ -129,7 +131,9 @@ const I18N = {
       sort_brand_asc: 'Brand · A–Z',
       sort_deal_desc: 'Best value',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
-      dealTip: 'Expected price for its year, km, ownership and trim: {p}',
+      dxBase: 'Base: 2020 · 100k km · private · Executive', dxYear: 'Year {y}', dxKm: '{k} km',
+      dxLeasing: 'Ex-leasing', dxRental: 'Ex-rental / company', dxTrim: 'Trim {tr}',
+      dxExpected: 'Expected price', dxAsked: 'Asking price', dxBelow: '{n}% below expected', dxAbove: '{n}% above expected',
       sort_year_desc: 'Year · newest first', sort_year_asc: 'Year · oldest first',
       reset: 'Reset', resetTitle: 'Clear all filters',
       themeToggle: 'Toggle light/dark theme',
@@ -882,6 +886,7 @@ const PREMIUM_TRIM = /SIGNATURE|PREMIUM|PURE|PLATINUM/i;
 const BASIC_TRIM = /COMFORT/i;
 const DEAL_MIN_CARS = 20;
 const DEAL_BAND = 0.05; // within ±5% of expected = "market price"
+let DEAL_B = null;       // fitted coefficients (for the per-car explanation)
 
 function dealFeatures(c) {
   if (!c.priceNis || !c.year || c.km == null) return null;
@@ -921,6 +926,7 @@ function scoreDeals(cars) {
   const sd = Math.sqrt(res.reduce((s, r) => s + r * r, 0) / res.length);
   const inliers = pts.filter((_, i) => Math.abs(res[i]) <= 2.5 * sd);
   if (inliers.length >= DEAL_MIN_CARS) b = olsFit(inliers.map((p) => p.x), inliers.map((p) => Math.log(p.c.priceNis)));
+  DEAL_B = b;
   pts.forEach((p) => {
     p.c.expected = Math.exp(predict(b, p.x));
     p.c.deal = (p.c.expected - p.c.priceNis) / p.c.expected; // +0.18 = 18% below expected
@@ -933,8 +939,34 @@ function dealChip(c) {
   const pct = Math.round(Math.abs(c.deal) * 100);
   const cls = c.deal >= 0.15 ? 'hot' : c.deal >= DEAL_BAND ? 'good' : c.deal <= -DEAL_BAND ? 'high' : 'fair';
   const label = cls === 'fair' ? t('dealFair') : c.deal > 0 ? t('dealBelow', { n: pct }) : t('dealAbove', { n: pct });
-  const tip = t('dealTip', { p: fmtNIS.format(Math.round(c.expected / 100) * 100) });
-  return `<span class="deal-chip ${cls}" title="${escapeHtml(tip)}">${cls === 'hot' ? '🔥 ' : ''}${escapeHtml(label)}</span>`;
+  return `<span class="deal-chip ${cls}" tabindex="0">${cls === 'hot' ? '🔥 ' : ''}${escapeHtml(label)}${dealExplain(c)}</span>`;
+}
+
+// Why this score: the reference car's price, then each factor's % effect from
+// the fitted coefficients, then expected vs. asked. Reference = 2020, 100k km,
+// private owners, Executive (km is centred so the base isn't a 0-km fantasy).
+function dealExplain(c) {
+  const b = DEAL_B, x = dealFeatures(c);
+  if (!b || !x) return '';
+  const nis = (v) => fmtNIS.format(Math.round(v / 100) * 100);
+  const pct = (logv) => { const v = Math.round((Math.exp(logv) - 1) * 100); return (v > 0 ? '+' : '') + v + '%'; };
+  const cls = (v) => (v > 0.0005 ? 'up' : v < -0.0005 ? 'down' : '');
+  const line = (label, logv) => `<span class="dt-row"><span>${escapeHtml(label)}</span><b class="${cls(logv)}">${pct(logv)}</b></span>`;
+  const rows = [];
+  rows.push(line(t('dxYear', { y: c.year }), b[1] * x[1]));
+  rows.push(line(t('dxKm', { k: fmtInt.format(c.km) }), b[2] * (x[2] - 10)));
+  if (x[3]) rows.push(line(t('dxLeasing'), b[3]));
+  if (x[4]) rows.push(line(t('dxRental'), b[4]));
+  if (x[5]) rows.push(line(t('dxTrim', { tr: c.description }), b[5]));
+  if (x[6]) rows.push(line(t('dxTrim', { tr: c.description }), b[6]));
+  const pctOff = Math.round(Math.abs(c.deal) * 100);
+  return `<span class="deal-tip" role="tooltip">
+    <span class="dt-row dt-base"><span>${escapeHtml(t('dxBase'))}</span><b>${nis(Math.exp(b[0] + b[2] * 10))}</b></span>
+    ${rows.join('')}
+    <span class="dt-row dt-sum"><span>${escapeHtml(t('dxExpected'))}</span><b>${nis(c.expected)}</b></span>
+    <span class="dt-row"><span>${escapeHtml(t('dxAsked'))}</span><b>${nis(c.priceNis)}</b></span>
+    <span class="dt-verdict">${escapeHtml(c.deal >= 0 ? t('dxBelow', { n: pctOff }) : t('dxAbove', { n: pctOff }))}</span>
+  </span>`;
 }
 
 // ---- Edit mode (car colours) ----
@@ -1036,6 +1068,15 @@ function setupEdit() {
   el('editStop').addEventListener('click', stopEdit);
   // Swatches sit inside the card's <a>: stop the tap from opening the listing.
   grid.addEventListener('click', (e) => {
+    const deal = e.target.closest('.deal-chip');
+    if (deal) {
+      e.preventDefault();
+      e.stopPropagation();
+      const was = deal.classList.contains('open');
+      grid.querySelectorAll('.deal-chip.open').forEach((n) => n.classList.remove('open'));
+      if (!was) deal.classList.add('open');
+      return;
+    }
     const chip = e.target.closest('.plate-chip');
     if (chip) {
       e.preventDefault();
