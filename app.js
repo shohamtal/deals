@@ -96,6 +96,7 @@ const I18N = {
       modelLabel: 'דגם', allModels: 'כל הדגמים', handLabel: 'יד', allHands: 'כל הידיים', handN: 'יד {n}',
       yearFrom: 'משנתון', yearTo: 'עד שנתון', maxKm: 'עד ק״מ',
       metaYear: 'שנתון', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
+      ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', plateTitle: 'היסטוריית הרכב במשומשת',
       extLabel: 'צבע חיצוני', seatLabel: 'צבע מושבים', allExt: 'כל הצבעים', allSeat: 'כל הצבעים',
       color_white: 'לבן', color_black: 'שחור', color_silver: 'כסוף', color_grey: 'אפור', color_blue: 'כחול',
       color_red: 'אדום', color_brown: 'חום', color_other: 'אחר', colorUnknown: 'לא ידוע',
@@ -142,6 +143,7 @@ const I18N = {
       modelLabel: 'Model', allModels: 'All models', handLabel: 'Hand', allHands: 'Any hand', handN: 'Hand {n}',
       yearFrom: 'Year from', yearTo: 'Year to', maxKm: 'Max km',
       metaYear: 'Year', metaKm: 'Km', metaHand: 'Hand', metaLocation: 'Location',
+      ownLabel: 'Prev. ownership', allOwn: 'Any ownership', plateTitle: 'Car history on Meshumeshet',
       extLabel: 'Exterior', seatLabel: 'Seats', allExt: 'All colors', allSeat: 'All colors',
       color_white: 'White', color_black: 'Black', color_silver: 'Silver', color_grey: 'Grey', color_blue: 'Blue',
       color_red: 'Red', color_brown: 'Brown', color_other: 'Other', colorUnknown: 'Unknown',
@@ -447,7 +449,7 @@ function setupExclude() {
   excludeChips = createChipsInput(el('qx'), { onChange: applyFilters });
 }
 
-const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat' };
+const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat', own: 'allOwn' };
 const MS_KEYS = Object.keys(MS_ALL_KEY);
 const NUM_KEYS = ['yearMin', 'yearMax', 'maxKm']; // car-only number inputs (URL keys match)
 function msTexts() {
@@ -548,6 +550,10 @@ function buildFilters() {
   ms.model.setOptions(toOpts('model'));
   ms.hand.setOptions(counted('hand').sort((a, b) => a[0] - b[0])
     .map(([value, count]) => ({ value, count, label: t('handN', { n: value }) })));
+  // Previous ownership: a car can have several types (e.g. ליסינג, פרטי).
+  const own = new Map();
+  ALL.forEach((x) => (x.prevOwnership || []).forEach((v) => own.set(v, (own.get(v) || 0) + 1)));
+  ms.own.setOptions([...own.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count, label: value })));
   ['exterior', 'seat'].forEach((k) => {
     const m = new Map();
     ALL.forEach((x) => { const v = x[k] || UNKNOWN; m.set(v, (m.get(v) || 0) + 1); });
@@ -576,6 +582,7 @@ function applyFilters() {
   const handSet = new Set(ms.hand.getSelected());
   const extSet = new Set(ms.ext.getSelected());
   const seatSet = new Set(ms.seat.getSelected());
+  const ownSet = new Set(ms.own.getSelected());
   const isCars = activeCat.id === 'cars';
   const yearMin = isCars ? parseInt(controls.yearMin.value, 10) : NaN;
   const yearMax = isCars ? parseInt(controls.yearMax.value, 10) : NaN;
@@ -596,6 +603,7 @@ function applyFilters() {
     if (handSet.size && !handSet.has(w.hand)) return false;
     if (extSet.size && !extSet.has(w.exterior || UNKNOWN)) return false;
     if (seatSet.size && !seatSet.has(w.seat || UNKNOWN)) return false;
+    if (ownSet.size && !(w.prevOwnership || []).some((v) => ownSet.has(v))) return false;
     // Edit mode shows only cars still missing the colour being edited.
     if (editMode && w[editMode]) return false;
     // Car range filters: listings missing the value pass (same rule as price).
@@ -613,7 +621,7 @@ function applyFilters() {
     if (fromMs != null && !(w.time && w.time >= fromMs)) return false;
     if (toMs != null && !(w.time && w.time <= toMs)) return false;
     if (q || exTerms.length) {
-      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.location || ''}`.toLowerCase();
+      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.location || ''} ${w.plate || ''} ${w.ownership || ''}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
       if (exTerms.length && exTerms.some((term) => hay.includes(term))) return false;
     }
@@ -733,7 +741,9 @@ function parseCarRow(get, ts) {
     hand: get('hand'),
     location: get('location'),
     plate: get('car_number'),
-    exterior: get('exterior_color'), // scraped (Freesbe/OPL); cars-notes overrides
+    exterior: get('exterior_color'), // scraped/registry; cars-notes overrides
+    ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
+    prevOwnership: get('prev_ownership').split(',').map((x) => x.trim()).filter(Boolean),
     seat: '',
   };
 }
@@ -801,6 +811,14 @@ function carCardHtml(c) {
     ? `<div class="palette" data-plate="${escapeHtml(c.plate)}">${COLOR_FIELDS[editMode].values.map((v) =>
         `<button type="button" class="swatch" data-v="${v}" title="${escapeHtml(colorLabel(v))}" style="background:${SWATCH[v]}"></button>`).join('')}</div>`
     : '';
+  // Licence-plate chip → Meshumeshet history. The card is itself an <a>, so the
+  // chip is a span opened by the delegated click handler (no nested links).
+  const plateChip = /^\d{7,8}$/.test(c.plate || '')
+    ? `<span class="plate-chip" role="link" tabindex="0" title="${escapeHtml(t('plateTitle'))}" data-href="https://meshumeshet.com/c/${c.plate}">🔎 ${fmtPlate(c.plate)}</span>`
+    : '';
+  const ownRow = c.prevOwnership && c.prevOwnership.length
+    ? `<div class="row" title="${escapeHtml(c.ownership)}"><span class="label">${escapeHtml(t('ownLabel'))}</span><span class="val">${escapeHtml(c.prevOwnership.join(' → '))}</span></div>`
+    : '';
   const cardTag = linkUrl ? 'a' : 'div';
   const hrefAttr = linkUrl ? ` href="${escapeHtml(linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
   return `
@@ -809,11 +827,12 @@ function carCardHtml(c) {
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
-      <div class="price-row">${price}</div>
+      <div class="price-row">${price}${plateChip}</div>
       <div class="card-meta">
         ${row('metaYear', c.year ? String(c.year) : '')}
         ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
         ${row('metaHand', c.hand)}
+        ${ownRow}
         ${colorRow('extLabel', c.exterior)}
         ${colorRow('seatLabel', c.seat)}
         ${row('metaSource', c.source || '—')}
@@ -846,6 +865,11 @@ function render() {
 
 // ---- Edit mode (car colours) ----
 let editMode = null; // null | 'exterior' | 'seat' — the item key being filled in
+
+// 8-digit plates read 123-45-678, 7-digit ones 12-345-67.
+function fmtPlate(p) {
+  return p.length === 8 ? `${p.slice(0, 3)}-${p.slice(3, 5)}-${p.slice(5)}` : `${p.slice(0, 2)}-${p.slice(2, 5)}-${p.slice(5)}`;
+}
 
 function colorLabel(v) { return v === UNKNOWN ? t('colorUnknown') : t('color_' + v); }
 function missingCount(k) { return ALL.filter((c) => !c[k] && c.plate).length; }
@@ -938,6 +962,13 @@ function setupEdit() {
   el('editStop').addEventListener('click', stopEdit);
   // Swatches sit inside the card's <a>: stop the tap from opening the listing.
   grid.addEventListener('click', (e) => {
+    const chip = e.target.closest('.plate-chip');
+    if (chip) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(chip.dataset.href, '_blank', 'noopener');
+      return;
+    }
     const btn = e.target.closest('.swatch');
     if (!btn) return;
     e.preventDefault();
@@ -980,6 +1011,7 @@ function appendCarParams(p) {
   ms.hand.getSelected().forEach((v) => p.append('hand', v));
   ms.ext.getSelected().forEach((v) => p.append('ext', v));
   ms.seat.getSelected().forEach((v) => p.append('seat', v));
+  ms.own.getSelected().forEach((v) => p.append('own', v));
   NUM_KEYS.forEach((k) => { if (controls[k].value) p.set(k, controls[k].value); });
 }
 
@@ -1017,6 +1049,7 @@ function restoreFromUrl() {
   if (p.has('hand')) ms.hand.setSelected(p.getAll('hand'));
   if (p.has('ext')) ms.ext.setSelected(p.getAll('ext'));
   if (p.has('seat')) ms.seat.setSelected(p.getAll('seat'));
+  if (p.has('own')) ms.own.setSelected(p.getAll('own'));
   NUM_KEYS.forEach((k) => set(controls[k], k));
   set(controls.condition, 'condition');
   set(controls.minPrice, 'min');
@@ -1103,6 +1136,7 @@ function applyFilterQuery(qs) {
   ms.hand.setSelected(p.getAll('hand'));
   ms.ext.setSelected(p.getAll('ext'));
   ms.seat.setSelected(p.getAll('seat'));
+  ms.own.setSelected(p.getAll('own'));
   NUM_KEYS.forEach((k) => { controls[k].value = p.get(k) || ''; });
   controls.condition.value = p.get('condition') || '';
   controls.minPrice.value = p.get('min') || '';
@@ -1125,6 +1159,7 @@ function describeQuery(qs) {
   const m = p.getAll('model'); if (m.length) parts.push(m.join(', '));
   const h = p.getAll('hand'); if (h.length) parts.push(h.map((n) => t('handN', { n })).join(', '));
   const ex = p.getAll('ext'); if (ex.length) parts.push(t('extLabel') + ': ' + ex.map(colorLabel).join(', '));
+  const ow = p.getAll('own'); if (ow.length) parts.push(t('ownLabel') + ': ' + ow.join(', '));
   const se = p.getAll('seat'); if (se.length) parts.push(t('seatLabel') + ': ' + se.map(colorLabel).join(', '));
   if (p.get('yearMin') || p.get('yearMax')) parts.push((p.get('yearMin') || '…') + '–' + (p.get('yearMax') || '…'));
   if (p.get('maxKm')) parts.push('≤' + fmtInt.format(p.get('maxKm')) + ' km');

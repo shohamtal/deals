@@ -735,3 +735,7 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 .edit-opt small { margin-inline-start: auto; color: var(--text-faint, #888); }
 .edit-err { color: #b42318; min-height: 1.2em; margin: 4px 0 10px; font-size: .9rem; }
 .edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Licence-plate chip (yellow Israeli plate look) → meshumeshet.com history */
+.plate-chip { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; background: #f7d51d; color: #111; border: 1px solid #1a1a1a; font-weight: 700; font-size: .85rem; letter-spacing: .5px; direction: ltr; cursor: pointer; white-space: nowrap; }
+.plate-chip:hover { filter: brightness(1.06); box-shadow: 0 1px 6px rgba(0,0,0,.2); }
