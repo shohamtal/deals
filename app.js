@@ -99,7 +99,7 @@ const I18N = {
       ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', plateTitle: 'היסטוריית הרכב במשומשת',
       extLabel: 'צבע חיצוני', seatLabel: 'צבע מושבים', allExt: 'כל הצבעים', allSeat: 'כל הצבעים',
       color_white: 'לבן', color_black: 'שחור', color_silver: 'כסוף', color_grey: 'אפור', color_blue: 'כחול',
-      color_red: 'אדום', color_brown: 'חום', color_other: 'אחר', colorUnknown: 'לא ידוע',
+      color_red: 'אדום', color_brown: 'חום', color_other: 'אחר', colorUnknown: 'טרם סווג',
       editBtn: '✏️ עריכה', editTitle: 'מה לערוך?', editPw: 'סיסמה', editStart: 'התחלה', editCancel: 'ביטול',
       editMissing: '{n} חסרים', editDone: 'סיום', editLeft: '{n} נותרו',
       editSeatHint: 'לחיצה על הכרטיס פותחת את המודעה עם כל התמונות',
@@ -146,7 +146,7 @@ const I18N = {
       ownLabel: 'Prev. ownership', allOwn: 'Any ownership', plateTitle: 'Car history on Meshumeshet',
       extLabel: 'Exterior', seatLabel: 'Seats', allExt: 'All colors', allSeat: 'All colors',
       color_white: 'White', color_black: 'Black', color_silver: 'Silver', color_grey: 'Grey', color_blue: 'Blue',
-      color_red: 'Red', color_brown: 'Brown', color_other: 'Other', colorUnknown: 'Unknown',
+      color_red: 'Red', color_brown: 'Brown', color_other: 'Other', colorUnknown: 'Not classified yet',
       editBtn: '✏️ Edit', editTitle: 'What to edit?', editPw: 'Password', editStart: 'Start', editCancel: 'Cancel',
       editMissing: '{n} missing', editDone: 'Done', editLeft: '{n} left',
       editSeatHint: 'Tap a card to open the listing with all its photos',
@@ -740,7 +740,7 @@ function parseCarRow(get, ts) {
     km: num(get('mileage_km')),
     hand: get('hand'),
     location: get('location'),
-    plate: get('car_number'),
+    plate: get('plate') || get('car_number'), // plate column = source plate or Yad2 OCR (registry-verified)
     exterior: get('exterior_color'), // scraped/registry; cars-notes overrides
     ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
     prevOwnership: get('prev_ownership').split(',').map((x) => x.trim()).filter(Boolean),
