@@ -57,6 +57,10 @@ Only the **USD** and **NIS (₪)** prices are ever shown; the sheet's other curr
 - **Writes** go only through the Apps Script web app in `apps-script/notes.gs` (bound to the sheet, runs as the owner, checks `EDIT_PASSWORD` from Script Properties, whitelists field/value). The site POSTs text/plain JSON to the web-app `/exec` URL (no CORS preflight). Neither the URL nor the password is in the repo (owner's choice; local copy in gitignored `.secrets.local`): both are typed once into the edit dialog and kept in `localStorage` (`deals-edit-endpoint`, `deals-edit-pw`) after a successful `ping`.
 - ✏️ Edit (Cars only) → pick exterior/seat → the grid shows only cars missing that value, each with a palette; a tap saves and fades the card (it isn't re-filtered under the finger).
 
+## Deal score (Cars)
+
+`scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; tooltip shows the expected price. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).
+
 ## Gotchas
 
 - Content derived from the sheet is untrusted: always route text through `escapeHtml` and any `href`/`src` through `safeUrl` (blocks `javascript:`/`data:`).

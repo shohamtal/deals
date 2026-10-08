@@ -739,3 +739,10 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 /* Licence-plate chip (yellow Israeli plate look) → meshumeshet.com history */
 .plate-chip { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; background: #f7d51d; color: #111; border: 1px solid #1a1a1a; font-weight: 700; font-size: .85rem; letter-spacing: .5px; direction: ltr; cursor: pointer; white-space: nowrap; }
 .plate-chip:hover { filter: brightness(1.06); box-shadow: 0 1px 6px rgba(0,0,0,.2); }
+
+/* Deal score chip: price vs. the live hedonic model (year/km/ownership/trim) */
+.deal-chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 8px; font-weight: 700; font-size: .82rem; border: 1px solid; white-space: nowrap; cursor: help; }
+.deal-chip.hot  { color: #fff; background: #15803d; border-color: #15803d; }
+.deal-chip.good { color: #15803d; background: rgba(21,128,61,.08); border-color: rgba(21,128,61,.4); }
+.deal-chip.fair { color: var(--text-dim, #555); background: transparent; border-color: var(--border); }
+.deal-chip.high { color: #b42318; background: rgba(180,35,24,.06); border-color: rgba(180,35,24,.35); }

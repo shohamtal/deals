@@ -77,6 +77,9 @@ const I18N = {
       sort_date_desc: 'תאריך · מהחדש לישן', sort_date_asc: 'תאריך · מהישן לחדש',
       sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
       sort_brand_asc: 'מותג · א׳–ת׳',
+      sort_deal_desc: 'הכי משתלם',
+      dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
+      dealTip: 'מחיר צפוי לפי שנתון, ק״מ, בעלות וגרסה: {p}',
       sort_year_desc: 'שנתון · מהחדש לישן', sort_year_asc: 'שנתון · מהישן לחדש',
       reset: 'איפוס', resetTitle: 'ניקוי כל הסינונים',
       themeToggle: 'החלפת מצב תצוגה',
@@ -124,6 +127,9 @@ const I18N = {
       sort_date_desc: 'Date · newest first', sort_date_asc: 'Date · oldest first',
       sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
       sort_brand_asc: 'Brand · A–Z',
+      sort_deal_desc: 'Best value',
+      dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
+      dealTip: 'Expected price for its year, km, ownership and trim: {p}',
       sort_year_desc: 'Year · newest first', sort_year_asc: 'Year · oldest first',
       reset: 'Reset', resetTitle: 'Clear all filters',
       themeToggle: 'Toggle light/dark theme',
@@ -645,6 +651,8 @@ function sortView() {
     brand_asc: (a, b) => a.brand.localeCompare(b.brand) || b.time - a.time,
     year_desc: (a, b) => (b.year || 0) - (a.year || 0) || b.time - a.time,
     year_asc: (a, b) => (a.year || Infinity) - (b.year || Infinity) || b.time - a.time,
+    // Best value first; cars without a score (missing year/km/price) last.
+    deal_desc: (a, b) => (b.deal ?? -Infinity) - (a.deal ?? -Infinity),
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
 }
@@ -827,7 +835,7 @@ function carCardHtml(c) {
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
-      <div class="price-row">${price}${plateChip}</div>
+      <div class="price-row">${price}${dealChip(c)}${plateChip}</div>
       <div class="card-meta">
         ${row('metaYear', c.year ? String(c.year) : '')}
         ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
@@ -861,6 +869,72 @@ function render() {
   renderPagination(pages);
   renderEditBar();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---- Deal score (cars) ----
+// Hedonic price model fitted live on every car in the sheet:
+//   ln(price) = b0 + b1·(year−2020) + b2·km/10k + b3·exLeasing + b4·exRental/company
+//               + b5·premiumTrim + b6·basicTrim   (Executive/Luxury = baseline; per the data)
+// A car's score is how far its price sits below (+) or above (−) the model's
+// expected price for its year/km/ownership/trim. Fit, drop outliers beyond
+// 2.5σ (typos, mispriced ads), refit. Too few cars → no scores.
+const PREMIUM_TRIM = /SIGNATURE|PREMIUM|PURE|PLATINUM/i;
+const BASIC_TRIM = /COMFORT/i;
+const DEAL_MIN_CARS = 20;
+const DEAL_BAND = 0.05; // within ±5% of expected = "market price"
+
+function dealFeatures(c) {
+  if (!c.priceNis || !c.year || c.km == null) return null;
+  const own = c.prevOwnership || [];
+  return [1, c.year - 2020, c.km / 10000,
+    own.includes('ליסינג') ? 1 : 0,
+    own.includes('השכרה') || own.includes('חברה') ? 1 : 0,
+    PREMIUM_TRIM.test(c.description || '') ? 1 : 0,
+    BASIC_TRIM.test(c.description || '') ? 1 : 0];
+}
+
+// Least squares via normal equations + Gaussian elimination (7×7; tiny ridge for stability).
+function olsFit(X, y) {
+  const k = X[0].length;
+  const A = Array.from({ length: k }, (_, i) => Array.from({ length: k + 1 }, (_, j) =>
+    j < k ? X.reduce((s, r) => s + r[i] * r[j], 0) + (i === j ? 1e-6 : 0) : X.reduce((s, r, n) => s + r[i] * y[n], 0)));
+  for (let c = 0; c < k; c++) {
+    let p = c;
+    for (let r = c + 1; r < k; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < k; r++) {
+      if (r === c || !A[c][c]) continue;
+      const f = A[r][c] / A[c][c];
+      for (let j = c; j <= k; j++) A[r][j] -= f * A[c][j];
+    }
+  }
+  return A.map((row, i) => (row[i] ? row[k] / row[i] : 0));
+}
+
+function scoreDeals(cars) {
+  let pts = cars.map((c) => ({ c, x: dealFeatures(c) })).filter((p) => p.x);
+  cars.forEach((c) => { c.deal = null; c.expected = null; });
+  if (pts.length < DEAL_MIN_CARS) return;
+  const predict = (b, x) => x.reduce((s, v, i) => s + v * b[i], 0);
+  let b = olsFit(pts.map((p) => p.x), pts.map((p) => Math.log(p.c.priceNis)));
+  const res = pts.map((p) => Math.log(p.c.priceNis) - predict(b, p.x));
+  const sd = Math.sqrt(res.reduce((s, r) => s + r * r, 0) / res.length);
+  const inliers = pts.filter((_, i) => Math.abs(res[i]) <= 2.5 * sd);
+  if (inliers.length >= DEAL_MIN_CARS) b = olsFit(inliers.map((p) => p.x), inliers.map((p) => Math.log(p.c.priceNis)));
+  pts.forEach((p) => {
+    p.c.expected = Math.exp(predict(b, p.x));
+    p.c.deal = (p.c.expected - p.c.priceNis) / p.c.expected; // +0.18 = 18% below expected
+  });
+  console.info('deal model', { n: inliers.length, coef: b.map((v) => +v.toFixed(4)) });
+}
+
+function dealChip(c) {
+  if (c.deal == null) return '';
+  const pct = Math.round(Math.abs(c.deal) * 100);
+  const cls = c.deal >= 0.15 ? 'hot' : c.deal >= DEAL_BAND ? 'good' : c.deal <= -DEAL_BAND ? 'high' : 'fair';
+  const label = cls === 'fair' ? t('dealFair') : c.deal > 0 ? t('dealBelow', { n: pct }) : t('dealAbove', { n: pct });
+  const tip = t('dealTip', { p: fmtNIS.format(Math.round(c.expected / 100) * 100) });
+  return `<span class="deal-chip ${cls}" title="${escapeHtml(tip)}">${cls === 'hot' ? '🔥 ' : ''}${escapeHtml(label)}</span>`;
 }
 
 // ---- Edit mode (car colours) ----
@@ -1312,6 +1386,7 @@ async function loadActive() {
       dataPromise = loadData(activeCat);
     }
     ALL = await dataPromise;
+    if (activeCat.id === 'cars') scoreDeals(ALL);
     buildFilters();
     restoreFromUrl();
     page = savedPage;
