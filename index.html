@@ -7,7 +7,7 @@
   <meta name="description" content="דילים שנאספו מרחבי העולם. עיון, סינון ומיון — החל משעונים." />
   <link rel="preconnect" href="https://docs.google.com" />
   <link rel="preconnect" href="https://www.hebcal.com" />
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body>
   <header class="site-header">
@@ -144,6 +144,9 @@
     <div class="results-bar">
       <span id="resultsSummary" class="results-summary"></span>
       <button type="button" id="editBtn" class="edit-btn" data-only="cars" hidden data-i18n="editBtn">✏️ Edit</button>
+      <span class="chip-toggle" data-only="cars" hidden>
+        <label><input type="checkbox" id="showHiddenChk" /> <span id="showHiddenLabel"></span></label>
+      </span>
       <span id="onlyWithPrice" class="chip-toggle">
         <label><input type="checkbox" id="hasPriceChk" /> <span data-i18n="onlyPriced">Only listings with a price</span></label>
       </span>
@@ -182,6 +185,6 @@
     <p data-i18n="footer"></p>
   </footer>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

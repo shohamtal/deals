@@ -57,6 +57,10 @@ Only the **USD** and **NIS (₪)** prices are ever shown; the sheet's other curr
 - **Writes** go only through the Apps Script web app in `apps-script/notes.gs` (bound to the sheet, runs as the owner, checks `EDIT_PASSWORD` from Script Properties, whitelists field/value). The site POSTs text/plain JSON to the web-app `/exec` URL (no CORS preflight). Neither the URL nor the password is in the repo (owner's choice; local copy in gitignored `.secrets.local`): both are typed once into the edit dialog and kept in `localStorage` (`deals-edit-endpoint`, `deals-edit-pw`) after a successful `ping`.
 - ✏️ Edit (Cars only) → pick exterior/seat → the grid shows only cars missing that value, each with a palette; a tap saves and fades the card (it isn't re-filtered under the finger).
 
+## Hide / "not interested" (Cars, client-only)
+
+Each car card has a ✕ (`hide-btn`) that adds the car's `plate` (or Yad2 ad token) to `localStorage['deals-hidden-cars']` and drops it from the view in place (`render({keepScroll:true})`). Nothing is written to the sheet — it's per browser. The "הצג מוסתרים (N)" toggle in the results bar flips the view to *only* hidden cars, each with "↩︎ החזר" to unhide. Hidden cars are excluded in edit mode too. Not part of the URL or saved searches.
+
 ## Deal score (Cars)
 
 `scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; hover/tap on the chip opens `dealExplain()`: reference car (2020, 100k km, private, Executive) price, each factor’s % effect, expected vs asking. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).

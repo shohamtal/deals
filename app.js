@@ -49,6 +49,7 @@ const SWATCH = {
   white: '#ffffff', black: '#151515', silver: '#c3c7cc', grey: '#6b7078', blue: '#2453a6',
   red: '#b3121f', brown: '#7a4a26', other: 'conic-gradient(#e44,#fc3,#4c4,#39f,#c4f,#e44)',
 };
+const HIDDEN_KEY = 'deals-hidden-cars'; // client-only "not interested" list (plate / Yad2 token)
 const UNKNOWN = '__none'; // filter value for "no colour recorded yet"
 // Filter fields marked data-only="<cat id>" in index.html show only on that tab.
 
@@ -110,6 +111,8 @@ const I18N = {
       editSeatHint: 'לחיצה על הכרטיס פותחת את המודעה עם כל התמונות',
       editBadPw: 'סיסמה שגויה', editNoEndpoint: 'חסרה כתובת ה‑Apps Script (…/exec).', editEndpointPh: 'כתובת Apps Script (…/exec)',
       editSaveFail: 'השמירה נכשלה: {e}',
+      hideTitle: 'לא מעניין – הסתר (רק בדפדפן הזה)', unhide: 'החזר', unhideTitle: 'החזר לתצוגה',
+      showHidden: 'הצג מוסתרים ({n})',
     },
   },
   en: {
@@ -162,6 +165,8 @@ const I18N = {
       editSeatHint: 'Tap a card to open the listing with all its photos',
       editBadPw: 'Wrong password', editNoEndpoint: 'Missing the Apps Script URL (…/exec).', editEndpointPh: 'Apps Script URL (…/exec)',
       editSaveFail: 'Save failed: {e}',
+      hideTitle: 'Not interested — hide (this browser only)', unhide: 'Unhide', unhideTitle: 'Show again',
+      showHidden: 'Show hidden ({n})',
     },
   },
 };
@@ -521,6 +526,7 @@ async function switchCategory(cat) {
   activeCat = cat;
   page = 1;
   editMode = null;
+  showHidden = false;
   ['q', 'condition', 'minPrice', 'maxPrice', ...NUM_KEYS].forEach((k) => { if (controls[k]) controls[k].value = ''; });
   excludeChips.clear();
   setDefaultDates();
@@ -614,6 +620,9 @@ function applyFilters() {
     if (extSet.size && !extSet.has(w.exterior || UNKNOWN)) return false;
     if (seatSet.size && !seatSet.has(w.seat || UNKNOWN)) return false;
     if (ownSet.size && !(w.prevOwnership || []).some((v) => ownSet.has(v))) return false;
+    // Hidden ("not interested") cars: out of the normal view; the
+    // "show hidden" toggle flips to showing only them, to review/unhide.
+    if (activeCat.id === 'cars' && hiddenKey(w) && HIDDEN.has(hiddenKey(w)) !== showHidden) return false;
     // Edit mode shows only cars still missing the colour being edited.
     if (editMode && w[editMode]) return false;
     // Car range filters: listings missing the value pass (same rule as price).
@@ -835,7 +844,7 @@ function carCardHtml(c) {
   const hrefAttr = linkUrl ? ` href="${escapeHtml(linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
   return `
   <${cardTag} class="card"${hrefAttr}>
-    <div class="card-img-wrap">${img}${yearBadge}${palette}</div>
+    <div class="card-img-wrap">${img}${yearBadge}${palette}${hideBtn(c)}</div>
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
@@ -856,7 +865,7 @@ function carCardHtml(c) {
   </${cardTag}>`;
 }
 
-function render() {
+function render({ keepScroll = false } = {}) {
   const total = VIEW.length;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (page > pages) page = pages;
@@ -872,7 +881,8 @@ function render() {
 
   renderPagination(pages);
   renderEditBar();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (activeCat.id === 'cars') updateHiddenToggle();
+  if (!keepScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ---- Deal score (cars) ----
@@ -967,6 +977,36 @@ function dealExplain(c) {
     <span class="dt-row"><span>${escapeHtml(t('dxAsked'))}</span><b>${nis(c.priceNis)}</b></span>
     <span class="dt-verdict">${escapeHtml(c.deal >= 0 ? t('dxBelow', { n: pctOff }) : t('dxAbove', { n: pctOff }))}</span>
   </span>`;
+}
+
+// ---- Hide ("not interested") — this browser only ----
+let HIDDEN = loadHidden();
+let showHidden = false;
+function hiddenKey(c) { return c.plate ? String(c.plate) : ''; } // plate, or Yad2 ad token
+function loadHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY)) || []); } catch (_) { return new Set(); }
+}
+function storeHidden() { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...HIDDEN])); } catch (_) {} }
+
+function hideBtn(c) {
+  const k = hiddenKey(c);
+  if (!k) return '';
+  const hidden = HIDDEN.has(k);
+  return `<button type="button" class="hide-btn${hidden ? ' unhide' : ''}" data-hide="${escapeHtml(k)}" title="${escapeHtml(t(hidden ? 'unhideTitle' : 'hideTitle'))}">${hidden ? '↩︎ ' + escapeHtml(t('unhide')) : '✕'}</button>`;
+}
+
+// Toggle one car; drop it from the current view in place (no jump to top).
+function toggleHidden(k) {
+  HIDDEN.has(k) ? HIDDEN.delete(k) : HIDDEN.add(k);
+  storeHidden();
+  VIEW = VIEW.filter((c) => hiddenKey(c) !== k);
+  render({ keepScroll: true });
+}
+
+function updateHiddenToggle() {
+  const n = ALL.filter((c) => HIDDEN.has(hiddenKey(c))).length;
+  el('showHiddenLabel').textContent = t('showHidden', { n });
+  el('showHiddenChk').checked = showHidden;
 }
 
 // ---- Edit mode (car colours) ----
@@ -1066,8 +1106,16 @@ function setupEdit() {
   el('editStart').addEventListener('click', startEdit);
   el('editCancel').addEventListener('click', () => el('editDialog').close());
   el('editStop').addEventListener('click', stopEdit);
+  el('showHiddenChk').addEventListener('change', (e) => { showHidden = e.target.checked; applyFilters(); });
   // Swatches sit inside the card's <a>: stop the tap from opening the listing.
   grid.addEventListener('click', (e) => {
+    const hb = e.target.closest('.hide-btn');
+    if (hb) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleHidden(hb.dataset.hide);
+      return;
+    }
     const deal = e.target.closest('.deal-chip');
     if (deal) {
       e.preventDefault();
