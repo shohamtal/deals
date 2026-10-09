@@ -765,7 +765,7 @@ function parseCarRow(get, ts) {
     exterior: get('exterior_color'), // scraped/registry; cars-notes overrides
     ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
     prevOwnership: get('prev_ownership').split(',').map((x) => x.trim()).filter(Boolean),
-    seat: '',
+    seat: get('seat_color'),         // scraped from ad text (Facebook); cars-notes overrides
   };
 }
 
