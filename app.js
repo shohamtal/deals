@@ -80,6 +80,7 @@ const I18N = {
       sort_brand_asc: 'מותג · א׳–ת׳',
       sort_deal_desc: 'הכי משתלם',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
+      kmWarn: 'ק״מ בטסט אחרון {k}', kmWarnTip: 'במודעה {a} ק״מ, אבל בטסט השנתי האחרון נרשמו {b} ק״מ ({n}% יותר) — חשד להורדת ק״מ',
       dxBase: 'בסיס: 2020 · 100 אלף ק״מ · פרטי · Executive', dxYear: 'שנתון {y}', dxKm: '{k} ק״מ',
       dxLeasing: 'עבר ליסינג', dxRental: 'עבר השכרה / חברה', dxTrim: 'גרסה {tr}',
       dxExpected: 'מחיר צפוי', dxAsked: 'מחיר מבוקש', dxBelow: '{n}% מתחת למחיר הצפוי', dxAbove: '{n}% מעל המחיר הצפוי',
@@ -134,6 +135,7 @@ const I18N = {
       sort_brand_asc: 'Brand · A–Z',
       sort_deal_desc: 'Best value',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
+      kmWarn: 'Km at last test {k}', kmWarnTip: 'Ad says {a} km, but the last annual test recorded {b} km ({n}% more) — possible odometer rollback',
       dxBase: 'Base: 2020 · 100k km · private · Executive', dxYear: 'Year {y}', dxKm: '{k} km',
       dxLeasing: 'Ex-leasing', dxRental: 'Ex-rental / company', dxTrim: 'Trim {tr}',
       dxExpected: 'Expected price', dxAsked: 'Asking price', dxBelow: '{n}% below expected', dxAbove: '{n}% above expected',
@@ -765,6 +767,7 @@ function parseCarRow(get, ts) {
     exterior: get('exterior_color'), // scraped/registry; cars-notes overrides
     ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
     prevOwnership: get('prev_ownership').split(',').map((x) => x.trim()).filter(Boolean),
+    testKm: num(get('test_km')),      // odometer at the last annual test (registry)
     seat: get('seat_color'),         // scraped from ad text (Facebook); cars-notes overrides
   };
 }
@@ -849,6 +852,7 @@ function carCardHtml(c) {
       <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
       <div class="price-row">${price}${dealChip(c)}${plateChip}</div>
+      ${kmWarning(c)}
       <div class="card-meta">
         ${row('metaYear', c.year ? String(c.year) : '')}
         ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
@@ -942,6 +946,16 @@ function scoreDeals(cars) {
     p.c.deal = (p.c.expected - p.c.priceNis) / p.c.expected; // +0.18 = 18% below expected
   });
   console.info('deal model', { n: inliers.length, coef: b.map((v) => +v.toFixed(4)) });
+}
+
+// Possible odometer rollback: advertised km more than 5% below the km the
+// registry recorded at the car's last annual test.
+const KM_GAP = 0.05;
+function kmWarning(c) {
+  if (!c.testKm || c.km == null || c.km >= c.testKm * (1 - KM_GAP)) return '';
+  const gap = Math.round((1 - c.km / c.testKm) * 100);
+  const tip = t('kmWarnTip', { a: fmtInt.format(c.km), b: fmtInt.format(c.testKm), n: gap });
+  return `<div class="km-warn" title="${escapeHtml(tip)}">⚠️ ${escapeHtml(t('kmWarn', { k: fmtInt.format(c.testKm) }))}</div>`;
 }
 
 function dealChip(c) {

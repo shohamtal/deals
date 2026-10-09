@@ -61,6 +61,10 @@ Only the **USD** and **NIS (₪)** prices are ever shown; the sheet's other curr
 
 Each car card has a ✕ (`hide-btn`) that adds the car's `plate` (or Yad2 ad token) to `localStorage['deals-hidden-cars']` and drops it from the view in place (`render({keepScroll:true})`). Nothing is written to the sheet — it's per browser. The "הצג מוסתרים (N)" toggle in the results bar flips the view to *only* hidden cars, each with "↩︎ החזר" to unhide. Hidden cars are excluded in edit mode too. Not part of the URL or saved searches.
 
+## Odometer warning (Cars)
+
+`test_km` (sheet column, from data.gov.il "private vehicle history" — km at the **last** annual test; no km time series exists there) → `kmWarning()` shows "⚠️ ק״מ בטסט אחרון X" when the advertised km is >5% (`KM_GAP`) below it; tooltip gives both numbers and the gap.
+
 ## Deal score (Cars)
 
 `scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; hover/tap on the chip opens `dealExplain()`: reference car (2020, 100k km, private, Executive) price, each factor’s % effect, expected vs asking. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).
