@@ -63,7 +63,7 @@ Each car card has a ✕ (`hide-btn`) that adds the car's `plate` (or Yad2 ad tok
 
 ## Odometer warning (Cars)
 
-`test_km` (sheet column, from data.gov.il "private vehicle history" — km at the **last** annual test; no km time series exists there) → `kmWarning()` shows "⚠️ ק״מ בטסט אחרון X" when the advertised km is >5% (`KM_GAP`) below it; tooltip gives both numbers and the gap.
+`test_km` (sheet column, from data.gov.il "private vehicle history" — km at the **last** annual test; no km time series exists there) → `kmWarning()` shows "⚠️ ק״מ בטסט אחרון X" when the advertised km is >5% (`KM_GAP`) below it; tooltip gives both numbers and the gap. Chip texts (km warning, deal label — both languages) are part of the free-text search haystack via `carChipText()`, so "בטסט אחרון" / "מתחת לשוק" filter by them.
 
 ## Deal score (Cars)
 

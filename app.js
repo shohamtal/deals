@@ -64,7 +64,7 @@ const I18N = {
   he: {
     dir: 'rtl', htmlLang: 'he', flag: '🇮🇱', docTitle: 'דילים', brand: 'דילים',
     strings: {
-      filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור…',
+      filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור… (גם ״בטסט אחרון״, ״מתחת לשוק״)',
       excludeLabel: 'לא כולל', excludePlaceholder: 'הוסיפו מילה…',
       excludeNone: 'ללא', excludeCount: '{n} מילים',
       savedBtn: '★ שמורים', savedNamePh: 'שם החיפוש', savedAdd: 'שמירה',
@@ -642,7 +642,7 @@ function applyFilters() {
     if (fromMs != null && !(w.time && w.time >= fromMs)) return false;
     if (toMs != null && !(w.time && w.time <= toMs)) return false;
     if (q || exTerms.length) {
-      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.location || ''} ${w.plate || ''} ${w.ownership || ''}`.toLowerCase();
+      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.location || ''} ${w.plate || ''} ${w.ownership || ''} ${carChipText(w)}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
       if (exTerms.length && exTerms.some((term) => hay.includes(term))) return false;
     }
@@ -946,6 +946,25 @@ function scoreDeals(cars) {
     p.c.deal = (p.c.expected - p.c.priceNis) / p.c.expected; // +0.18 = 18% below expected
   });
   console.info('deal model', { n: inliers.length, coef: b.map((v) => +v.toFixed(4)) });
+}
+
+// The text of a car's warning/deal chips, so the free-text search finds them
+// (e.g. "בטסט אחרון" → every car with an odometer warning). Both languages.
+function carChipText(c) {
+  if (activeCat.id !== 'cars') return '';
+  const out = [];
+  const both = (key, params) => Object.keys(I18N).forEach((l) => {
+    let str = I18N[l].strings[key] || '';
+    for (const k in params || {}) str = str.replace(`{${k}}`, params[k]);
+    out.push(str);
+  });
+  if (kmWarning(c)) both('kmWarn', { k: fmtInt.format(c.testKm) });
+  if (c.deal != null) {
+    const pct = Math.round(Math.abs(c.deal) * 100);
+    if (Math.abs(c.deal) < DEAL_BAND) both('dealFair');
+    else both(c.deal > 0 ? 'dealBelow' : 'dealAbove', { n: pct });
+  }
+  return out.join(' ');
 }
 
 // Possible odometer rollback: advertised km more than 5% below the km the
