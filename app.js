@@ -767,7 +767,8 @@ function parseCarRow(get, ts) {
     exterior: get('exterior_color'), // scraped/registry; cars-notes overrides
     ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
     prevOwnership: get('prev_ownership').split(',').map((x) => x.trim()).filter(Boolean),
-    testKm: num(get('test_km')),      // odometer at the last annual test (registry)
+    testKm: num(get('test_km')),
+    kmNote: get('km_note'),           // "טסט 2026-02" when km came from the registry, not the ad      // odometer at the last annual test (registry)
     seat: get('seat_color'),         // scraped from ad text (Facebook); cars-notes overrides
   };
 }
@@ -855,7 +856,7 @@ function carCardHtml(c) {
       ${kmWarning(c)}
       <div class="card-meta">
         ${row('metaYear', c.year ? String(c.year) : '')}
-        ${row('metaKm', c.km != null ? fmtInt.format(c.km) : '')}
+        ${row('metaKm', c.km != null ? fmtInt.format(c.km) + (c.kmNote ? ` (${c.kmNote})` : '') : '')}
         ${row('metaHand', c.hand)}
         ${ownRow}
         ${colorRow('extLabel', c.exterior)}
@@ -1373,12 +1374,22 @@ function storeSaved(arr) {
   try { localStorage.setItem(SAVED_KEY, JSON.stringify(arr)); } catch (_) {}
 }
 
+// Which tab a saved search belongs to. Searches saved before tabs were tracked
+// have no `cat`: they're cars if they use a car-only filter, else watches.
+const CAR_ONLY_PARAMS = ['model', 'hand', 'ext', 'seat', 'own', ...NUM_KEYS];
+function savedCat(it) {
+  if (it.cat) return it.cat;
+  const p = new URLSearchParams(it.query);
+  return CAR_ONLY_PARAMS.some((k) => p.has(k)) ? 'cars' : 'watches';
+}
+
 function renderSavedList() {
   const list = el('savedList');
-  const items = loadSaved();
+  // Only this tab's searches; keep each one's index in the stored array for delete.
+  const items = loadSaved().map((it, i) => ({ it, i })).filter(({ it }) => savedCat(it) === activeCat.id);
   el('savedEmpty').hidden = items.length !== 0;
   list.innerHTML = '';
-  items.forEach((it, i) => {
+  items.forEach(({ it, i }) => {
     const sub = describeQuery(it.query);
     const row = document.createElement('div');
     row.className = 'saved-item';
@@ -1442,7 +1453,7 @@ function setupSaved() {
     const arr = loadSaved();
     if (arr.length >= SAVED_MAX) { updateSavedControls(); return; }
     const name = (nameInput.value.trim()) || `${t('savedDefault')} ${arr.length + 1}`;
-    arr.push({ name, query });
+    arr.push({ name, query, cat: activeCat.id });
     storeSaved(arr);
     renderSavedList(); updateSavedControls();
     nameInput.value = '';
