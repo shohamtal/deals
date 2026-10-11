@@ -67,6 +67,10 @@ Each car card has a ✕ (`hide-btn`) that adds the car's `plate` (or Yad2 ad tok
 
 Where the ad gave no km, web-automation2 fills `mileage_km` from `test_km` and sets `km_note` ("טסט YYYY-MM"); the card shows it next to the km. Missing trim is filled from the registry's `ramat_gimur`.
 
+## Equipment (Cars)
+
+`features` column ("key:src,…", written by web-automation2 `car_features.py`) → `parseFeatures()` → chips under the price (`featureChips`) and the `feat` filter (car must have **all** selected). Sources: `reg` = official per-plate equipment (data.gov.il degem-rechev-wltp) — solid blue; `trim` = implied by trim+year (Mazda Israel 2019/2022 trim announcements) — dashed, tooltip says "verify"; `ad` = seller text keywords — dotted. Reverse camera / lane keeping / pedestrian detection are hidden on cards (`CARD_HIDDEN_FEATURES`, ~every car has them) but filterable. Labels are in the free-text haystack.
+
 ## Deal score (Cars)
 
 `scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; hover/tap on the chip opens `dealExplain()`: reference car (2020, 100k km, private, Executive) price, each factor’s % effect, expected vs asking. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).

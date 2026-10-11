@@ -766,3 +766,10 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 
 /* Possible odometer rollback (listing km < last-test km by >5%) */
 .km-warn { align-self: flex-start; padding: 3px 9px; border-radius: 8px; background: rgba(180,35,24,.08); border: 1px solid rgba(180,35,24,.4); color: #b42318; font-weight: 700; font-size: .82rem; cursor: help; }
+
+/* Equipment chips: solid = official (registry), dashed = implied by trim, dotted = ad text */
+.feat-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.feat { font-size: .72rem; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim, #555); background: var(--surface-2, #fff); white-space: nowrap; cursor: help; }
+.feat.reg { border-color: rgba(37,99,235,.35); color: #1e40af; background: rgba(37,99,235,.06); }
+.feat.trim { border-style: dashed; }
+.feat.ad { border-style: dotted; }

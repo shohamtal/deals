@@ -50,7 +50,39 @@ const SWATCH = {
   red: '#b3121f', brown: '#7a4a26', other: 'conic-gradient(#e44,#fc3,#4c4,#39f,#c4f,#e44)',
 };
 const HIDDEN_KEY = 'deals-hidden-cars'; // client-only "not interested" list (plate / Yad2 token)
-const UNKNOWN = '__none'; // filter value for "no colour recorded yet"
+const UNKNOWN = '__none';
+
+// Equipment chips (web-automation2 car_features.py → `features` = "key:src,…").
+// Order = display priority. src: reg = official (registry, per car),
+// trim = implied by trim+year (verify), ad = seller's own text.
+const FEATURES = {
+  ventilated_seats: { icon: '❄️', he: 'אוורור מושבים', en: 'Ventilated seats' },
+  cam360: { icon: '📷', he: 'מצלמות 360', en: '360° cameras' },
+  hud: { icon: '🪟', he: 'תצוגה עילית', en: 'Head-up display' },
+  sunroof: { icon: '☀️', he: 'חלון גג', en: 'Sunroof' },
+  nappa: { icon: '🛋️', he: 'עור נאפה', en: 'Nappa leather' },
+  leather: { icon: '🛋️', he: 'ריפוד עור', en: 'Leather' },
+  power_tailgate: { icon: '🚪', he: 'תא מטען חשמלי', en: 'Power tailgate' },
+  bose: { icon: '🔊', he: 'Bose', en: 'Bose audio' },
+  adaptive_cruise: { icon: '🛣️', he: 'שיוט אדפטיבי', en: 'Adaptive cruise' },
+  blind_spot: { icon: '👁️', he: 'שטח מת', en: 'Blind-spot monitor' },
+  awd: { icon: '⛰️', he: '4X4', en: 'AWD' },
+  driver_memory: { icon: '💺', he: 'זיכרון לנהג', en: 'Driver seat memory' },
+  wireless_charge: { icon: '🔋', he: 'טעינה אלחוטית', en: 'Wireless charging' },
+  screen8: { icon: '🖥️', he: 'מסך 8״', en: '8" screen' },
+  auto_high_beam: { icon: '💡', he: 'אורות גבוהים אוטו׳', en: 'Auto high beams' },
+  lane_keep: { icon: '↔️', he: 'סטייה מנתיב', en: 'Lane keeping' },
+  pedestrian_aeb: { icon: '🚶', he: 'זיהוי הולכי רגל', en: 'Pedestrian detection' },
+  reverse_cam: { icon: '🎥', he: 'מצלמת רוורס', en: 'Reverse camera' },
+};
+const FEATURE_ORDER = Object.keys(FEATURES);
+const CARD_HIDDEN_FEATURES = new Set(['reverse_cam', 'lane_keep', 'pedestrian_aeb']);
+function featLabel(k) { const f = FEATURES[k]; return f ? f[lang] || f.he : k; }
+function parseFeatures(raw) {
+  const out = {};
+  String(raw || '').split(',').forEach((p) => { const [k, src] = p.split(':'); if (k && FEATURES[k]) out[k] = src || 'reg'; });
+  return out;
+} // filter value for "no colour recorded yet"
 // Filter fields marked data-only="<cat id>" in index.html show only on that tab.
 
 const PAGE_SIZE = 50;
@@ -103,6 +135,8 @@ const I18N = {
       modelLabel: 'דגם', allModels: 'כל הדגמים', handLabel: 'יד', allHands: 'כל הידיים', handN: 'יד {n}',
       yearFrom: 'משנתון', yearTo: 'עד שנתון', maxKm: 'עד ק״מ',
       metaYear: 'שנתון', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
+      featLabel: 'אבזור', allFeat: 'כל האבזור',
+      featSrc_reg: 'רשמי (משרד התחבורה, לפי לוחית)', featSrc_trim: 'לפי רמת גימור ושנתון — כדאי לוודא', featSrc_ad: 'לפי טקסט המודעה',
       ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', plateTitle: 'היסטוריית הרכב במשומשת',
       extLabel: 'צבע חיצוני', seatLabel: 'צבע מושבים', allExt: 'כל הצבעים', allSeat: 'כל הצבעים',
       color_white: 'לבן', color_black: 'שחור', color_silver: 'כסוף', color_grey: 'אפור', color_blue: 'כחול',
@@ -158,6 +192,8 @@ const I18N = {
       modelLabel: 'Model', allModels: 'All models', handLabel: 'Hand', allHands: 'Any hand', handN: 'Hand {n}',
       yearFrom: 'Year from', yearTo: 'Year to', maxKm: 'Max km',
       metaYear: 'Year', metaKm: 'Km', metaHand: 'Hand', metaLocation: 'Location',
+      featLabel: 'Equipment', allFeat: 'Any equipment',
+      featSrc_reg: 'Official (Ministry of Transport, by plate)', featSrc_trim: 'Implied by trim + year — verify', featSrc_ad: 'From the ad text',
       ownLabel: 'Prev. ownership', allOwn: 'Any ownership', plateTitle: 'Car history on Meshumeshet',
       extLabel: 'Exterior', seatLabel: 'Seats', allExt: 'All colors', allSeat: 'All colors',
       color_white: 'White', color_black: 'Black', color_silver: 'Silver', color_grey: 'Grey', color_blue: 'Blue',
@@ -466,7 +502,7 @@ function setupExclude() {
   excludeChips = createChipsInput(el('qx'), { onChange: applyFilters });
 }
 
-const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat', own: 'allOwn' };
+const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat', own: 'allOwn', feat: 'allFeat' };
 const MS_KEYS = Object.keys(MS_ALL_KEY);
 const NUM_KEYS = ['yearMin', 'yearMax', 'maxKm']; // car-only number inputs (URL keys match)
 function msTexts() {
@@ -568,6 +604,9 @@ function buildFilters() {
   ms.model.setOptions(toOpts('model'));
   ms.hand.setOptions(counted('hand').sort((a, b) => a[0] - b[0])
     .map(([value, count]) => ({ value, count, label: t('handN', { n: value }) })));
+  const fc = new Map();
+  ALL.forEach((x) => Object.keys(x.features || {}).forEach((k) => fc.set(k, (fc.get(k) || 0) + 1)));
+  ms.feat.setOptions(FEATURE_ORDER.filter((k) => fc.has(k)).map((k) => ({ value: k, count: fc.get(k), label: `${FEATURES[k].icon} ${featLabel(k)}` })));
   // Previous ownership: a car can have several types (e.g. ליסינג, פרטי).
   const own = new Map();
   ALL.forEach((x) => (x.prevOwnership || []).forEach((v) => own.set(v, (own.get(v) || 0) + 1)));
@@ -601,6 +640,7 @@ function applyFilters() {
   const extSet = new Set(ms.ext.getSelected());
   const seatSet = new Set(ms.seat.getSelected());
   const ownSet = new Set(ms.own.getSelected());
+  const featSel = ms.feat.getSelected();
   const isCars = activeCat.id === 'cars';
   const yearMin = isCars ? parseInt(controls.yearMin.value, 10) : NaN;
   const yearMax = isCars ? parseInt(controls.yearMax.value, 10) : NaN;
@@ -622,6 +662,7 @@ function applyFilters() {
     if (extSet.size && !extSet.has(w.exterior || UNKNOWN)) return false;
     if (seatSet.size && !seatSet.has(w.seat || UNKNOWN)) return false;
     if (ownSet.size && !(w.prevOwnership || []).some((v) => ownSet.has(v))) return false;
+    if (featSel.length && !featSel.every((k) => w.features && (w.features[k] || (k === 'leather' && w.features.nappa)))) return false;
     // Hidden ("not interested") cars: out of the normal view; the
     // "show hidden" toggle flips to showing only them, to review/unhide.
     if (activeCat.id === 'cars' && hiddenKey(w) && HIDDEN.has(hiddenKey(w)) !== showHidden) return false;
@@ -768,6 +809,7 @@ function parseCarRow(get, ts) {
     ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
     prevOwnership: get('prev_ownership').split(',').map((x) => x.trim()).filter(Boolean),
     testKm: num(get('test_km')),
+    features: parseFeatures(get('features')),
     kmNote: get('km_note'),           // "טסט 2026-02" when km came from the registry, not the ad      // odometer at the last annual test (registry)
     seat: get('seat_color'),         // scraped from ad text (Facebook); cars-notes overrides
   };
@@ -854,6 +896,7 @@ function carCardHtml(c) {
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
       <div class="price-row">${price}${dealChip(c)}${plateChip}</div>
       ${kmWarning(c)}
+      ${featureChips(c)}
       <div class="card-meta">
         ${row('metaYear', c.year ? String(c.year) : '')}
         ${row('metaKm', c.km != null ? fmtInt.format(c.km) + (c.kmNote ? ` (${c.kmNote})` : '') : '')}
@@ -960,12 +1003,24 @@ function carChipText(c) {
     out.push(str);
   });
   if (kmWarning(c)) both('kmWarn', { k: fmtInt.format(c.testKm) });
+  Object.keys(c.features || {}).forEach((k) => out.push(FEATURES[k].he, FEATURES[k].en));
   if (c.deal != null) {
     const pct = Math.round(Math.abs(c.deal) * 100);
     if (Math.abs(c.deal) < DEAL_BAND) both('dealFair');
     else both(c.deal > 0 ? 'dealBelow' : 'dealAbove', { n: pct });
   }
   return out.join(' ');
+}
+
+function featureChips(c) {
+  // Near-universal safety kit (≈every CX-5 since 2017) stays filterable but off the card.
+  const keys = FEATURE_ORDER.filter((k) => c.features && c.features[k] && !CARD_HIDDEN_FEATURES.has(k)
+    && !(k === 'leather' && c.features.nappa));
+  if (!keys.length) return '';
+  return `<div class="feat-row">${keys.map((k) => {
+    const src = c.features[k];
+    return `<span class="feat ${src}" title="${escapeHtml(featLabel(k) + ' · ' + t('featSrc_' + src))}">${FEATURES[k].icon} ${escapeHtml(featLabel(k))}</span>`;
+  }).join('')}</div>`;
 }
 
 // Possible odometer rollback: advertised km more than 5% below the km the
@@ -1209,6 +1264,7 @@ function appendCarParams(p) {
   ms.ext.getSelected().forEach((v) => p.append('ext', v));
   ms.seat.getSelected().forEach((v) => p.append('seat', v));
   ms.own.getSelected().forEach((v) => p.append('own', v));
+  ms.feat.getSelected().forEach((v) => p.append('feat', v));
   NUM_KEYS.forEach((k) => { if (controls[k].value) p.set(k, controls[k].value); });
 }
 
@@ -1247,6 +1303,7 @@ function restoreFromUrl() {
   if (p.has('ext')) ms.ext.setSelected(p.getAll('ext'));
   if (p.has('seat')) ms.seat.setSelected(p.getAll('seat'));
   if (p.has('own')) ms.own.setSelected(p.getAll('own'));
+  if (p.has('feat')) ms.feat.setSelected(p.getAll('feat'));
   NUM_KEYS.forEach((k) => set(controls[k], k));
   set(controls.condition, 'condition');
   set(controls.minPrice, 'min');
@@ -1334,6 +1391,7 @@ function applyFilterQuery(qs) {
   ms.ext.setSelected(p.getAll('ext'));
   ms.seat.setSelected(p.getAll('seat'));
   ms.own.setSelected(p.getAll('own'));
+  ms.feat.setSelected(p.getAll('feat'));
   NUM_KEYS.forEach((k) => { controls[k].value = p.get(k) || ''; });
   controls.condition.value = p.get('condition') || '';
   controls.minPrice.value = p.get('min') || '';
@@ -1356,6 +1414,7 @@ function describeQuery(qs) {
   const m = p.getAll('model'); if (m.length) parts.push(m.join(', '));
   const h = p.getAll('hand'); if (h.length) parts.push(h.map((n) => t('handN', { n })).join(', '));
   const ex = p.getAll('ext'); if (ex.length) parts.push(t('extLabel') + ': ' + ex.map(colorLabel).join(', '));
+  const fe = p.getAll('feat'); if (fe.length) parts.push(fe.map(featLabel).join(', '));
   const ow = p.getAll('own'); if (ow.length) parts.push(t('ownLabel') + ': ' + ow.join(', '));
   const se = p.getAll('seat'); if (se.length) parts.push(t('seatLabel') + ': ' + se.map(colorLabel).join(', '));
   if (p.get('yearMin') || p.get('yearMax')) parts.push((p.get('yearMin') || '…') + '–' + (p.get('yearMax') || '…'));
@@ -1376,7 +1435,7 @@ function storeSaved(arr) {
 
 // Which tab a saved search belongs to. Searches saved before tabs were tracked
 // have no `cat`: they're cars if they use a car-only filter, else watches.
-const CAR_ONLY_PARAMS = ['model', 'hand', 'ext', 'seat', 'own', ...NUM_KEYS];
+const CAR_ONLY_PARAMS = ['model', 'hand', 'ext', 'seat', 'own', 'feat', ...NUM_KEYS];
 function savedCat(it) {
   if (it.cat) return it.cat;
   const p = new URLSearchParams(it.query);
