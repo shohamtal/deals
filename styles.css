@@ -741,6 +741,10 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 .plate-chip:hover { filter: brightness(1.06); box-shadow: 0 1px 6px rgba(0,0,0,.2); }
 
 /* Deal score chip: price vs. the live hedonic model (year/km/ownership/trim) */
+.price-hist { margin-top: 6px; font-size: .8rem; font-weight: 600; cursor: help; }
+.price-hist.down { color: #15803d; }
+.price-hist.up { color: #b91c1c; }
+.card-meta .row.stale .val { color: #b45309; }
 .y2-chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 8px; font-weight: 600; font-size: .8rem; border: 1px dashed var(--text-faint); color: var(--text-dim); white-space: nowrap; cursor: help; }
 .y2-chip.good { color: #15803d; border-color: rgba(21,128,61,.5); }
 .y2-chip.high { color: #b91c1c; border-color: rgba(185,28,28,.5); }

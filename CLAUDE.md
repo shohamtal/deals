@@ -75,6 +75,10 @@ Where the ad gave no km, web-automation2 fills `mileage_km` from `test_km` and s
 
 `yad2_price` (Yad2's calculator value, weighted for the car's km / hand / ex-leasing-rental / road date), `yad2_base` (list price of the sub-model+year), `yad2_range`, `yad2_trim` — written once per car by web-automation2 `yad2_pricelist.py` (the site never calls Yad2). `y2Chip()` shows "מחירון יד2 ₪X (±N%)" next to the deal chip (green ≤−5%, red ≥+5%; tooltip has list/weighted/range/asking); sort `y2_desc` = most below it.
 
+## Price history (Cars)
+
+`price_history` ("YYYY-MM-DD:price,…"; `?` = an earlier price from the source's own drop tag — Yad2 `priceBeforeTag`, Facebook struck-out price) and `last_seen` are maintained by web-automation2 `_update_prices()` on every run. `priceHistChip()` shows "📉 ירד N% (first → now) · K הורדות" (tooltip = every step); `seenRow()` shows last seen + days tracked, or "⏸ לא נראה מאז" after 2 days (not for Facebook — it's sampled). Sort `drop_desc`. Sorts use `descNullsLast` (`-Infinity - -Infinity` is NaN and breaks `Array.sort`). RTL: the first card in the grid is the right-most.
+
 ## Deal score (Cars)
 
 `scoreDeals()` fits a log-linear price model live in the browser on every car in the sheet (`ln price ~ year + km/10k + ex-leasing + ex-rental/company + premium trim (Signature/Premium/Pure) + basic trim (Comfort)`; Executive/Luxury = baseline — trims were bucketed from the data's residuals), drops >2.5σ outliers and refits. `deal` = (expected − price)/expected → chip: 🔥 ≥15% below, green ≥5% below, grey ±5% "market price", red ≥5% above; hover/tap on the chip opens `dealExplain()`: reference car (2020, 100k km, private, Executive) price, each factor’s % effect, expected vs asking. Sort `deal_desc` = best value. Needs ≥20 scorable cars (price+year+km). Coefficients are logged to the console (`deal model`).

@@ -111,6 +111,8 @@ const I18N = {
       sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
       sort_brand_asc: 'מותג · א׳–ת׳',
       sort_deal_desc: 'הכי משתלם',
+      dropChip: 'ירד {n}%', upChip: 'עלה {n}%', dropTimes: '{k} הורדות', priceHistTitle: 'היסטוריית מחיר', histBefore: 'קודם',
+      lastSeen: 'נראה לאחרונה', notSeenSince: 'לא נראה מאז {d}', daysListed: '{n} ימים במעקב', sort_drop_desc: 'הכי ירד במחיר',
       y2Label: 'מחירון יד2', y2Tip: 'מחירון יד2 ({tr}): {base} · משוקלל לק״מ/יד/בעלות: {w} (טווח {r}) · מבוקש: {a}', sort_y2_desc: 'הכי מתחת למחירון',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
       kmWarn: 'ק״מ בטסט אחרון {k}', kmWarnTip: 'במודעה {a} ק״מ, אבל בטסט השנתי האחרון נרשמו {b} ק״מ ({n}% יותר) — חשד להורדת ק״מ',
@@ -169,6 +171,8 @@ const I18N = {
       sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
       sort_brand_asc: 'Brand · A–Z',
       sort_deal_desc: 'Best value',
+      dropChip: 'Down {n}%', upChip: 'Up {n}%', dropTimes: '{k} drops', priceHistTitle: 'Price history', histBefore: 'earlier',
+      lastSeen: 'Last seen', notSeenSince: 'Not seen since {d}', daysListed: 'tracked {n} days', sort_drop_desc: 'Biggest price drop',
       y2Label: 'Yad2 price list', y2Tip: 'Yad2 list price ({tr}): {base} · weighted for km/hand/ownership: {w} (range {r}) · asking: {a}', sort_y2_desc: 'Most below price list',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
       kmWarn: 'Km at last test {k}', kmWarnTip: 'Ad says {a} km, but the last annual test recorded {b} km ({n}% more) — possible odometer rollback',
@@ -710,8 +714,9 @@ function sortView() {
     year_desc: (a, b) => (b.year || 0) - (a.year || 0) || b.time - a.time,
     year_asc: (a, b) => (a.year || Infinity) - (b.year || Infinity) || b.time - a.time,
     // Best value first; cars without a score (missing year/km/price) last.
-    deal_desc: (a, b) => (b.deal ?? -Infinity) - (a.deal ?? -Infinity),
-    y2_desc: (a, b) => (b.y2Gap ?? -Infinity) - (a.y2Gap ?? -Infinity),
+    deal_desc: (a, b) => descNullsLast(a.deal, b.deal),
+    drop_desc: (a, b) => descNullsLast(a.drop, b.drop),
+    y2_desc: (a, b) => descNullsLast(a.y2Gap, b.y2Gap),
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
 }
@@ -790,6 +795,12 @@ function parseWatchRow(get, ts) {
   };
 }
 
+// Descending, nulls last. (−Infinity − −Infinity is NaN, which breaks Array.sort.)
+function descNullsLast(x, y) {
+  if (x == null) return y == null ? 0 : 1;
+  return y == null ? -1 : y - x;
+}
+
 function parseCarRow(get, ts) {
   const num = (v) => { const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? n : null; };
   return {
@@ -818,6 +829,12 @@ function parseCarRow(get, ts) {
     y2Price: num(get('yad2_price')),  // Yad2 price list, weighted for this car's km/hand/ownership
     y2Base: num(get('yad2_base')),    // Yad2 list price of the sub-model/year
     y2Range: get('yad2_range'), y2Trim: get('yad2_trim'),
+    // "?:67000,2026-10-08:60000,…" = price seen from each date ("?" = before we
+    // first saw the ad, from the source's own drop tag); written by web-automation2.
+    priceHist: get('price_history').split(',').map((e) => {
+      const [d, p] = e.split(':'); return { d: d === '?' ? null : d, p: num(p) };
+    }).filter((e) => e.p),
+    lastSeen: get('last_seen'),
   };
 }
 
@@ -902,6 +919,7 @@ function carCardHtml(c) {
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
       <div class="price-row">${price}${dealChip(c)}${y2Chip(c)}${plateChip}</div>
       ${kmWarning(c)}
+      ${priceHistChip(c)}
       ${featureChips(c)}
       <div class="card-meta">
         ${row('metaYear', c.year ? String(c.year) : '')}
@@ -913,10 +931,39 @@ function carCardHtml(c) {
         ${row('metaSource', c.source || '—')}
         ${row('metaLocation', c.location)}
         ${row('metaListed', fmtDate(c.timestamp))}
+        ${seenRow(c)}
         <div class="open-hint">${escapeHtml(t('openListing'))}</div>
       </div>
     </div>
   </${cardTag}>`;
+}
+
+// Price history: first → current, number of drops, each step in the tooltip.
+// A seller who keeps dropping is a seller in a hurry.
+function priceHistChip(c) {
+  const h = c.priceHist || [];
+  if (h.length < 2) return '';
+  const first = h[0].p, last = h[h.length - 1].p;
+  if (first === last) return '';
+  const pct = Math.round(Math.abs(last / first - 1) * 100);
+  const drops = h.slice(1).filter((e, i) => e.p < h[i].p).length;
+  const steps = h.map((e) => `${e.d ? fmtDate(e.d) : t('histBefore')}: ${fmtNIS.format(e.p)}`).join(' → ');
+  const down = last < first;
+  const label = (down ? '📉 ' + t('dropChip', { n: pct }) : '📈 ' + t('upChip', { n: pct }))
+    + ` (${fmtNIS.format(first)} → ${fmtNIS.format(last)})` + (drops > 1 ? ' · ' + t('dropTimes', { k: drops }) : '');
+  return `<div class="price-hist ${down ? 'down' : 'up'}" title="${escapeHtml(t('priceHistTitle') + ': ' + steps)}">${escapeHtml(label)}</div>`;
+}
+
+// Last time a scraper saw the ad live. Facebook is sampled (12h, partial scroll),
+// so "not seen" is only flagged for the full-coverage sources.
+function seenRow(c) {
+  if (!c.lastSeen) return '';
+  const days = Math.floor((Date.now() - Date.parse(c.lastSeen)) / 864e5);
+  const stale = days >= 2 && c.source !== 'Facebook';
+  const tracked = Math.max(0, Math.round((Date.parse(c.lastSeen) - c.time) / 864e5));
+  const val = stale ? '⏸ ' + t('notSeenSince', { d: fmtDate(c.lastSeen) })
+    : fmtDate(c.lastSeen) + (tracked ? ` · ${t('daysListed', { n: tracked })}` : '');
+  return `<div class="row${stale ? ' stale' : ''}"><span class="label">${escapeHtml(t('lastSeen'))}</span><span class="val">${escapeHtml(val)}</span></div>`;
 }
 
 function render({ keepScroll = false } = {}) {
@@ -1009,6 +1056,7 @@ function carChipText(c) {
     out.push(str);
   });
   if (kmWarning(c)) both('kmWarn', { k: fmtInt.format(c.testKm) });
+  if (c.drop > 0) both('dropChip', { n: Math.round(c.drop * 100) });
   Object.keys(c.features || {}).forEach((k) => out.push(FEATURES[k].he, FEATURES[k].en));
   if (c.deal != null) {
     const pct = Math.round(Math.abs(c.deal) * 100);
@@ -1599,7 +1647,10 @@ async function loadActive() {
     ALL = await dataPromise;
     if (activeCat.id === 'cars') {
       scoreDeals(ALL);
-      ALL.forEach((c) => { const v = c.y2Price || c.y2Base; c.y2Gap = v && c.priceNis ? (v - c.priceNis) / v : null; });
+      ALL.forEach((c) => {
+        const v = c.y2Price || c.y2Base; c.y2Gap = v && c.priceNis ? (v - c.priceNis) / v : null;
+        const h = c.priceHist; c.drop = h.length > 1 ? 1 - h[h.length - 1].p / h[0].p : null; // +0.1 = dropped 10%
+      });
     }
     buildFilters();
     restoreFromUrl();
