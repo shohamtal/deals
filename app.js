@@ -111,6 +111,7 @@ const I18N = {
       sort_price_asc: 'מחיר · מהנמוך לגבוה', sort_price_desc: 'מחיר · מהגבוה לנמוך',
       sort_brand_asc: 'מותג · א׳–ת׳',
       sort_deal_desc: 'הכי משתלם',
+      y2Label: 'מחירון יד2', y2Tip: 'מחירון יד2 ({tr}): {base} · משוקלל לק״מ/יד/בעלות: {w} (טווח {r}) · מבוקש: {a}', sort_y2_desc: 'הכי מתחת למחירון',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
       kmWarn: 'ק״מ בטסט אחרון {k}', kmWarnTip: 'במודעה {a} ק״מ, אבל בטסט השנתי האחרון נרשמו {b} ק״מ ({n}% יותר) — חשד להורדת ק״מ',
       dxBase: 'בסיס: 2020 · 100 אלף ק״מ · פרטי · Executive', dxYear: 'שנתון {y}', dxKm: '{k} ק״מ',
@@ -168,6 +169,7 @@ const I18N = {
       sort_price_asc: 'Price · low to high', sort_price_desc: 'Price · high to low',
       sort_brand_asc: 'Brand · A–Z',
       sort_deal_desc: 'Best value',
+      y2Label: 'Yad2 price list', y2Tip: 'Yad2 list price ({tr}): {base} · weighted for km/hand/ownership: {w} (range {r}) · asking: {a}', sort_y2_desc: 'Most below price list',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
       kmWarn: 'Km at last test {k}', kmWarnTip: 'Ad says {a} km, but the last annual test recorded {b} km ({n}% more) — possible odometer rollback',
       dxBase: 'Base: 2020 · 100k km · private · Executive', dxYear: 'Year {y}', dxKm: '{k} km',
@@ -709,6 +711,7 @@ function sortView() {
     year_asc: (a, b) => (a.year || Infinity) - (b.year || Infinity) || b.time - a.time,
     // Best value first; cars without a score (missing year/km/price) last.
     deal_desc: (a, b) => (b.deal ?? -Infinity) - (a.deal ?? -Infinity),
+    y2_desc: (a, b) => (b.y2Gap ?? -Infinity) - (a.y2Gap ?? -Infinity),
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
 }
@@ -812,6 +815,9 @@ function parseCarRow(get, ts) {
     features: parseFeatures(get('features')),
     kmNote: get('km_note'),           // "טסט 2026-02" when km came from the registry, not the ad      // odometer at the last annual test (registry)
     seat: get('seat_color'),         // scraped from ad text (Facebook); cars-notes overrides
+    y2Price: num(get('yad2_price')),  // Yad2 price list, weighted for this car's km/hand/ownership
+    y2Base: num(get('yad2_base')),    // Yad2 list price of the sub-model/year
+    y2Range: get('yad2_range'), y2Trim: get('yad2_trim'),
   };
 }
 
@@ -894,7 +900,7 @@ function carCardHtml(c) {
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(c.brand)}</span></div>
       <div class="card-model">${escapeHtml(c.model || '—')}${c.description ? ' · ' + escapeHtml(c.description) : ''}</div>
-      <div class="price-row">${price}${dealChip(c)}${plateChip}</div>
+      <div class="price-row">${price}${dealChip(c)}${y2Chip(c)}${plateChip}</div>
       ${kmWarning(c)}
       ${featureChips(c)}
       <div class="card-meta">
@@ -1031,6 +1037,19 @@ function kmWarning(c) {
   const gap = Math.round((1 - c.km / c.testKm) * 100);
   const tip = t('kmWarnTip', { a: fmtInt.format(c.km), b: fmtInt.format(c.testKm), n: gap });
   return `<div class="km-warn" title="${escapeHtml(tip)}">⚠️ ${escapeHtml(t('kmWarn', { k: fmtInt.format(c.testKm) }))}</div>`;
+}
+
+// Yad2 price list (stored per car by web-automation2 yad2_pricelist.py): the
+// weighted value and how far the asking price sits from it.
+function y2Chip(c) {
+  const v = c.y2Price || c.y2Base;
+  if (!v) return '';
+  const gap = c.priceNis ? Math.round((c.priceNis / v - 1) * 100) : null;
+  const cls = gap == null ? '' : gap <= -5 ? 'good' : gap >= 5 ? 'high' : 'fair';
+  const r = (c.y2Range || '').split('-').map((x) => fmtNIS.format(+x)).join('–');
+  const tip = t('y2Tip', { tr: c.y2Trim || '—', base: c.y2Base ? fmtNIS.format(c.y2Base) : '—',
+    w: c.y2Price ? fmtNIS.format(c.y2Price) : '—', r: c.y2Range ? r : '—', a: c.priceNis ? fmtNIS.format(c.priceNis) : '—' });
+  return `<span class="y2-chip ${cls}" title="${escapeHtml(tip)}">${escapeHtml(t('y2Label'))} ${fmtNIS.format(v)}${gap == null ? '' : ` (${gap > 0 ? '+' : ''}${gap}%)`}</span>`;
 }
 
 function dealChip(c) {
@@ -1578,7 +1597,10 @@ async function loadActive() {
       dataPromise = loadData(activeCat);
     }
     ALL = await dataPromise;
-    if (activeCat.id === 'cars') scoreDeals(ALL);
+    if (activeCat.id === 'cars') {
+      scoreDeals(ALL);
+      ALL.forEach((c) => { const v = c.y2Price || c.y2Base; c.y2Gap = v && c.priceNis ? (v - c.priceNis) / v : null; });
+    }
     buildFilters();
     restoreFromUrl();
     page = savedPage;
