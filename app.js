@@ -140,7 +140,7 @@ const I18N = {
       metaYear: 'שנתון', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
       featLabel: 'אבזור', allFeat: 'כל האבזור',
       featSrc_reg: 'רשמי (משרד התחבורה, לפי לוחית)', featSrc_trim: 'לפי רמת גימור ושנתון — כדאי לוודא', featSrc_ad: 'לפי טקסט המודעה',
-      ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', plateTitle: 'היסטוריית הרכב במשומשת',
+      ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', locLabel: 'מיקום', allLoc: 'כל המיקומים', plateTitle: 'היסטוריית הרכב במשומשת',
       extLabel: 'צבע חיצוני', seatLabel: 'צבע מושבים', allExt: 'כל הצבעים', allSeat: 'כל הצבעים',
       color_white: 'לבן', color_black: 'שחור', color_silver: 'כסוף', color_grey: 'אפור', color_blue: 'כחול',
       color_red: 'אדום', color_brown: 'חום', color_other: 'אחר', colorUnknown: 'טרם סווג',
@@ -200,7 +200,7 @@ const I18N = {
       metaYear: 'Year', metaKm: 'Km', metaHand: 'Hand', metaLocation: 'Location',
       featLabel: 'Equipment', allFeat: 'Any equipment',
       featSrc_reg: 'Official (Ministry of Transport, by plate)', featSrc_trim: 'Implied by trim + year — verify', featSrc_ad: 'From the ad text',
-      ownLabel: 'Prev. ownership', allOwn: 'Any ownership', plateTitle: 'Car history on Meshumeshet',
+      ownLabel: 'Prev. ownership', allOwn: 'Any ownership', locLabel: 'Location', allLoc: 'All locations', plateTitle: 'Car history on Meshumeshet',
       extLabel: 'Exterior', seatLabel: 'Seats', allExt: 'All colors', allSeat: 'All colors',
       color_white: 'White', color_black: 'Black', color_silver: 'Silver', color_grey: 'Grey', color_blue: 'Blue',
       color_red: 'Red', color_brown: 'Brown', color_other: 'Other', colorUnknown: 'Not classified yet',
@@ -508,7 +508,7 @@ function setupExclude() {
   excludeChips = createChipsInput(el('qx'), { onChange: applyFilters });
 }
 
-const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat', own: 'allOwn', feat: 'allFeat' };
+const MS_ALL_KEY = { brand: 'allBrands', country: 'allCountries', source: 'allSources', model: 'allModels', hand: 'allHands', ext: 'allExt', seat: 'allSeat', own: 'allOwn', feat: 'allFeat', loc: 'allLoc' };
 const MS_KEYS = Object.keys(MS_ALL_KEY);
 const NUM_KEYS = ['yearMin', 'yearMax', 'maxKm']; // car-only number inputs (URL keys match)
 function msTexts() {
@@ -608,6 +608,7 @@ function buildFilters() {
   ms.country.setOptions(toOpts('country', 'country'));
   ms.source.setOptions(toOpts('source'));
   ms.model.setOptions(toOpts('model'));
+  ms.loc.setOptions(toOpts('location'));
   ms.hand.setOptions(counted('hand').sort((a, b) => a[0] - b[0])
     .map(([value, count]) => ({ value, count, label: t('handN', { n: value }) })));
   const fc = new Map();
@@ -646,6 +647,7 @@ function applyFilters() {
   const extSet = new Set(ms.ext.getSelected());
   const seatSet = new Set(ms.seat.getSelected());
   const ownSet = new Set(ms.own.getSelected());
+  const locSet = new Set(ms.loc.getSelected());
   const featSel = ms.feat.getSelected();
   const isCars = activeCat.id === 'cars';
   const yearMin = isCars ? parseInt(controls.yearMin.value, 10) : NaN;
@@ -668,6 +670,7 @@ function applyFilters() {
     if (extSet.size && !extSet.has(w.exterior || UNKNOWN)) return false;
     if (seatSet.size && !seatSet.has(w.seat || UNKNOWN)) return false;
     if (ownSet.size && !(w.prevOwnership || []).some((v) => ownSet.has(v))) return false;
+    if (locSet.size && !locSet.has(w.location)) return false;
     if (featSel.length && !featSel.every((k) => w.features && (w.features[k] || (k === 'leather' && w.features.nappa)))) return false;
     // Hidden ("not interested") cars: out of the normal view; the
     // "show hidden" toggle flips to showing only them, to review/unhide.
@@ -1323,7 +1326,7 @@ function renderPagination(pages) {
 }
 
 // ---- URL state ----
-// Car-only filters (model, hand, year range, max km) → query params.
+// Car-only filters (model, hand, location, year range, max km) → query params.
 function appendCarParams(p) {
   if (activeCat.id !== 'cars') return;
   ms.model.getSelected().forEach((v) => p.append('model', v));
@@ -1331,6 +1334,7 @@ function appendCarParams(p) {
   ms.ext.getSelected().forEach((v) => p.append('ext', v));
   ms.seat.getSelected().forEach((v) => p.append('seat', v));
   ms.own.getSelected().forEach((v) => p.append('own', v));
+  ms.loc.getSelected().forEach((v) => p.append('loc', v));
   ms.feat.getSelected().forEach((v) => p.append('feat', v));
   NUM_KEYS.forEach((k) => { if (controls[k].value) p.set(k, controls[k].value); });
 }
@@ -1370,6 +1374,7 @@ function restoreFromUrl() {
   if (p.has('ext')) ms.ext.setSelected(p.getAll('ext'));
   if (p.has('seat')) ms.seat.setSelected(p.getAll('seat'));
   if (p.has('own')) ms.own.setSelected(p.getAll('own'));
+  if (p.has('loc')) ms.loc.setSelected(p.getAll('loc'));
   if (p.has('feat')) ms.feat.setSelected(p.getAll('feat'));
   NUM_KEYS.forEach((k) => set(controls[k], k));
   set(controls.condition, 'condition');
@@ -1458,6 +1463,7 @@ function applyFilterQuery(qs) {
   ms.ext.setSelected(p.getAll('ext'));
   ms.seat.setSelected(p.getAll('seat'));
   ms.own.setSelected(p.getAll('own'));
+  ms.loc.setSelected(p.getAll('loc'));
   ms.feat.setSelected(p.getAll('feat'));
   NUM_KEYS.forEach((k) => { controls[k].value = p.get(k) || ''; });
   controls.condition.value = p.get('condition') || '';
@@ -1483,6 +1489,7 @@ function describeQuery(qs) {
   const ex = p.getAll('ext'); if (ex.length) parts.push(t('extLabel') + ': ' + ex.map(colorLabel).join(', '));
   const fe = p.getAll('feat'); if (fe.length) parts.push(fe.map(featLabel).join(', '));
   const ow = p.getAll('own'); if (ow.length) parts.push(t('ownLabel') + ': ' + ow.join(', '));
+  const lo = p.getAll('loc'); if (lo.length) parts.push(t('locLabel') + ': ' + lo.join(', '));
   const se = p.getAll('seat'); if (se.length) parts.push(t('seatLabel') + ': ' + se.map(colorLabel).join(', '));
   if (p.get('yearMin') || p.get('yearMax')) parts.push((p.get('yearMin') || '…') + '–' + (p.get('yearMax') || '…'));
   if (p.get('maxKm')) parts.push('≤' + fmtInt.format(p.get('maxKm')) + ' km');
@@ -1502,7 +1509,7 @@ function storeSaved(arr) {
 
 // Which tab a saved search belongs to. Searches saved before tabs were tracked
 // have no `cat`: they're cars if they use a car-only filter, else watches.
-const CAR_ONLY_PARAMS = ['model', 'hand', 'ext', 'seat', 'own', 'feat', ...NUM_KEYS];
+const CAR_ONLY_PARAMS = ['model', 'hand', 'ext', 'seat', 'own', 'feat', 'loc', ...NUM_KEYS];
 function savedCat(it) {
   if (it.cat) return it.cat;
   const p = new URLSearchParams(it.query);
