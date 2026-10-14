@@ -148,7 +148,7 @@ const I18N = {
       y2Label: 'מחירון יד2', y2Tip: 'מחירון יד2 ({tr}): {base} · משוקלל לק״מ/יד/בעלות: {w} (טווח {r}) · מבוקש: {a}', sort_y2_desc: 'הכי מתחת למחירון',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
       kmWarn: 'ק״מ בטסט אחרון {k}', kmWarnTip: 'במודעה {a} ק״מ, אבל בטסט השנתי האחרון נרשמו {b} ק״מ ({n}% יותר) — חשד להורדת ק״מ',
-      dxBase: 'בסיס: 2020 · 100 אלף ק״מ · פרטי · Executive', dxYear: 'שנתון {y}', dxKm: '{k} ק״מ',
+      dxBase: 'בסיס: 2020 · 100 אלף ק״מ · פרטי{tr}', dxYear: 'שנתון {y}', dxKm: '{k} ק״מ',
       dxLeasing: 'עבר ליסינג', dxRental: 'עבר השכרה / חברה', dxTrim: 'גרסה {tr}',
       dxExpected: 'מחיר צפוי', dxAsked: 'מחיר מבוקש', dxBelow: '{n}% מתחת למחיר הצפוי', dxAbove: '{n}% מעל המחיר הצפוי',
       sort_year_desc: 'שנתון · מהחדש לישן', sort_year_asc: 'שנתון · מהישן לחדש',
@@ -208,7 +208,7 @@ const I18N = {
       y2Label: 'Yad2 price list', y2Tip: 'Yad2 list price ({tr}): {base} · weighted for km/hand/ownership: {w} (range {r}) · asking: {a}', sort_y2_desc: 'Most below price list',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
       kmWarn: 'Km at last test {k}', kmWarnTip: 'Ad says {a} km, but the last annual test recorded {b} km ({n}% more) — possible odometer rollback',
-      dxBase: 'Base: 2020 · 100k km · private · Executive', dxYear: 'Year {y}', dxKm: '{k} km',
+      dxBase: 'Base: 2020 · 100k km · private{tr}', dxYear: 'Year {y}', dxKm: '{k} km',
       dxLeasing: 'Ex-leasing', dxRental: 'Ex-rental / company', dxTrim: 'Trim {tr}',
       dxExpected: 'Expected price', dxAsked: 'Asking price', dxBelow: '{n}% below expected', dxAbove: '{n}% above expected',
       sort_year_desc: 'Year · newest first', sort_year_asc: 'Year · oldest first',
@@ -1033,7 +1033,7 @@ const PREMIUM_TRIM = /SIGNATURE|PREMIUM|PURE|PLATINUM/i;
 const BASIC_TRIM = /COMFORT/i;
 const DEAL_MIN_CARS = 20;
 const DEAL_BAND = 0.05; // within ±5% of expected = "market price"
-let DEAL_B = null;       // fitted coefficients (for the per-car explanation)
+let DEAL_B = {};         // fitted coefficients per model (for the per-car explanation)
 
 function dealFeatures(c) {
   if (!c.priceNis || !c.year || c.km == null) return null;
@@ -1041,8 +1041,19 @@ function dealFeatures(c) {
   return [1, c.year - 2020, c.km / 10000,
     own.includes('ליסינג') ? 1 : 0,
     own.includes('השכרה') || own.includes('חברה') ? 1 : 0,
-    PREMIUM_TRIM.test(c.description || '') ? 1 : 0,
-    BASIC_TRIM.test(c.description || '') ? 1 : 0];
+    // Trim buckets were derived from CX-5 residuals; other models (Tucson = Elite only) get none.
+    isCx5(c) && PREMIUM_TRIM.test(c.description || '') ? 1 : 0,
+    isCx5(c) && BASIC_TRIM.test(c.description || '') ? 1 : 0];
+}
+function isCx5(c) { return /^cx-?5$/i.test(c.model || ''); }
+
+// One price model per car model (a Tucson isn't priced like a CX-5).
+function scoreDeals(cars) {
+  DEAL_B = {};
+  cars.forEach((c) => { c.deal = null; c.expected = null; });
+  const groups = {};
+  cars.forEach((c) => { (groups[c.model || ''] = groups[c.model || ''] || []).push(c); });
+  Object.entries(groups).forEach(([model, list]) => scoreModel(model, list));
 }
 
 // Least squares via normal equations + Gaussian elimination (7×7; tiny ridge for stability).
@@ -1063,9 +1074,8 @@ function olsFit(X, y) {
   return A.map((row, i) => (row[i] ? row[k] / row[i] : 0));
 }
 
-function scoreDeals(cars) {
+function scoreModel(model, cars) {
   let pts = cars.map((c) => ({ c, x: dealFeatures(c) })).filter((p) => p.x);
-  cars.forEach((c) => { c.deal = null; c.expected = null; });
   if (pts.length < DEAL_MIN_CARS) return;
   const predict = (b, x) => x.reduce((s, v, i) => s + v * b[i], 0);
   let b = olsFit(pts.map((p) => p.x), pts.map((p) => Math.log(p.c.priceNis)));
@@ -1073,12 +1083,12 @@ function scoreDeals(cars) {
   const sd = Math.sqrt(res.reduce((s, r) => s + r * r, 0) / res.length);
   const inliers = pts.filter((_, i) => Math.abs(res[i]) <= 2.5 * sd);
   if (inliers.length >= DEAL_MIN_CARS) b = olsFit(inliers.map((p) => p.x), inliers.map((p) => Math.log(p.c.priceNis)));
-  DEAL_B = b;
+  DEAL_B[model] = b;
   pts.forEach((p) => {
     p.c.expected = Math.exp(predict(b, p.x));
     p.c.deal = (p.c.expected - p.c.priceNis) / p.c.expected; // +0.18 = 18% below expected
   });
-  console.info('deal model', { n: inliers.length, coef: b.map((v) => +v.toFixed(4)) });
+  console.info('deal model', model, { n: inliers.length, coef: b.map((v) => +v.toFixed(4)) });
 }
 
 // The text of a car's warning/deal chips, so the free-text search finds them
@@ -1148,7 +1158,7 @@ function dealChip(c) {
 // the fitted coefficients, then expected vs. asked. Reference = 2020, 100k km,
 // private owners, Executive (km is centred so the base isn't a 0-km fantasy).
 function dealExplain(c) {
-  const b = DEAL_B, x = dealFeatures(c);
+  const b = DEAL_B[c.model || ''], x = dealFeatures(c);
   if (!b || !x) return '';
   const nis = (v) => fmtNIS.format(Math.round(v / 100) * 100);
   const pct = (logv) => { const v = Math.round((Math.exp(logv) - 1) * 100); return (v > 0 ? '+' : '') + v + '%'; };
@@ -1163,7 +1173,7 @@ function dealExplain(c) {
   if (x[6]) rows.push(line(t('dxTrim', { tr: c.description }), b[6]));
   const pctOff = Math.round(Math.abs(c.deal) * 100);
   return `<span class="deal-tip" role="tooltip">
-    <span class="dt-row dt-base"><span>${escapeHtml(t('dxBase'))}</span><b>${nis(Math.exp(b[0] + b[2] * 10))}</b></span>
+    <span class="dt-row dt-base"><span>${escapeHtml(t('dxBase', { tr: isCx5(c) ? ' · Executive' : '' }))}</span><b>${nis(Math.exp(b[0] + b[2] * 10))}</b></span>
     ${rows.join('')}
     <span class="dt-row dt-sum"><span>${escapeHtml(t('dxExpected'))}</span><b>${nis(c.expected)}</b></span>
     <span class="dt-row"><span>${escapeHtml(t('dxAsked'))}</span><b>${nis(c.priceNis)}</b></span>
