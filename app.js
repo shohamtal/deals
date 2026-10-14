@@ -52,6 +52,38 @@ const SWATCH = {
 const HIDDEN_KEY = 'deals-hidden-cars'; // client-only "not interested" list (plate / Yad2 token)
 const UNKNOWN = '__none';
 
+// Location filter: sources name places differently (Yad2 = its own areas, dealers /
+// Facebook = city), so every location is folded into a Yad2 area. Unmapped values
+// stay as their own option; empty → UNKNOWN.
+const NATIONWIDE = 'כל הארץ';
+const CITY_REGION = {
+  'רמת השרון': 'אזור רמת השרון והרצליה', 'הרצליה': 'אזור רמת השרון והרצליה',
+  'רעננה': 'אזור רעננה וכפר סבא', 'כפר סבא': 'אזור רעננה וכפר סבא',
+  'נתניה': 'אזור נתניה והסביבה', 'קדימה צורן': 'אזור צפון השרון',
+  'תל אביב-יפו': 'אזור תל אביב יפו', 'תל אביב': 'אזור תל אביב יפו', 'בני ברק': 'אזור רמת גן וגבעתיים',
+  'רמת גן': 'אזור רמת גן וגבעתיים', 'גבעתיים': 'אזור רמת גן וגבעתיים',
+  'חולון': 'אזור חולון ובת ים', 'בת ים': 'אזור חולון ובת ים',
+  'פתח תקווה': 'פתח תקווה והסביבה', 'ראשון לציון': 'אזור ראשון לציון והסביבה',
+  'לוד': 'אזור רמלה - לוד', 'רמלה': 'אזור רמלה - לוד', 'מודיעין-מכבים-רעות': 'אזור מודיעין והסביבה',
+  'רחובות': 'אזור נס ציונה ורחובות', 'נס ציונה': 'אזור נס ציונה ורחובות',
+  'גן יבנה': 'אזור גדרה - יבנה והסביבה', 'יבנה': 'אזור גדרה - יבנה והסביבה',
+  'אשדוד': 'אזור אשדוד, אשקלון והסביבה', 'אשקלון': 'אזור אשדוד, אשקלון והסביבה',
+  'באר שבע': 'אזור באר שבע והסביבה', 'שדרות': 'אזור הנגב המערבי', 'ירושלים': 'אזור ירושלים',
+  'חיפה': 'אזור חיפה והסביבה', 'קיסריה': 'אזור קיסריה והסביבה',
+  'חדרה': 'אזור חדרה והסביבה', 'פרדס חנה כרכור': 'אזור חדרה והסביבה', 'אליכין': 'אזור חדרה והסביבה',
+  'אום אל-פחם': 'אזור חדרה והסביבה', 'באקה אל-גרבייה': 'אזור חדרה והסביבה',
+  'עפולה': 'אזור עפולה והעמקים', 'Migdal Haemeqck, Hazafon, Israel': 'אזור עפולה והעמקים',
+  'נצרת': 'אזור נצרת - שפרעם והסביבה', 'טמרה': 'אזור נצרת - שפרעם והסביבה',
+  'בפריסה ארצית': NATIONWIDE, 'אזור': UNKNOWN,
+};
+function locRegion(loc) {
+  const v = (loc || '').trim();
+  return v ? (CITY_REGION[v] || v) : UNKNOWN;
+}
+function regionLabel(r) {
+  return r === UNKNOWN ? t('locNone') : r.replace(/^אזור /, '');
+}
+
 // Equipment chips (web-automation2 car_features.py → `features` = "key:src,…").
 // Order = display priority. src: reg = official (registry, per car),
 // trim = implied by trim+year (verify), ad = seller's own text.
@@ -140,7 +172,7 @@ const I18N = {
       metaYear: 'שנתון', metaKm: 'ק״מ', metaHand: 'יד', metaLocation: 'מיקום',
       featLabel: 'אבזור', allFeat: 'כל האבזור',
       featSrc_reg: 'רשמי (משרד התחבורה, לפי לוחית)', featSrc_trim: 'לפי רמת גימור ושנתון — כדאי לוודא', featSrc_ad: 'לפי טקסט המודעה',
-      ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', locLabel: 'מיקום', allLoc: 'כל המיקומים', plateTitle: 'היסטוריית הרכב במשומשת',
+      ownLabel: 'בעלות קודמת', allOwn: 'כל הבעלויות', locLabel: 'אזור', allLoc: 'כל האזורים', locNone: 'לא ידוע', plateTitle: 'היסטוריית הרכב במשומשת',
       extLabel: 'צבע חיצוני', seatLabel: 'צבע מושבים', allExt: 'כל הצבעים', allSeat: 'כל הצבעים',
       color_white: 'לבן', color_black: 'שחור', color_silver: 'כסוף', color_grey: 'אפור', color_blue: 'כחול',
       color_red: 'אדום', color_brown: 'חום', color_other: 'אחר', colorUnknown: 'טרם סווג',
@@ -200,7 +232,7 @@ const I18N = {
       metaYear: 'Year', metaKm: 'Km', metaHand: 'Hand', metaLocation: 'Location',
       featLabel: 'Equipment', allFeat: 'Any equipment',
       featSrc_reg: 'Official (Ministry of Transport, by plate)', featSrc_trim: 'Implied by trim + year — verify', featSrc_ad: 'From the ad text',
-      ownLabel: 'Prev. ownership', allOwn: 'Any ownership', locLabel: 'Location', allLoc: 'All locations', plateTitle: 'Car history on Meshumeshet',
+      ownLabel: 'Prev. ownership', allOwn: 'Any ownership', locLabel: 'Area', allLoc: 'All areas', locNone: 'Unknown', plateTitle: 'Car history on Meshumeshet',
       extLabel: 'Exterior', seatLabel: 'Seats', allExt: 'All colors', allSeat: 'All colors',
       color_white: 'White', color_black: 'Black', color_silver: 'Silver', color_grey: 'Grey', color_blue: 'Blue',
       color_red: 'Red', color_brown: 'Brown', color_other: 'Other', colorUnknown: 'Not classified yet',
@@ -608,7 +640,7 @@ function buildFilters() {
   ms.country.setOptions(toOpts('country', 'country'));
   ms.source.setOptions(toOpts('source'));
   ms.model.setOptions(toOpts('model'));
-  ms.loc.setOptions(toOpts('location'));
+  ms.loc.setOptions(counted('region').map(([value, count]) => ({ value, count, label: regionLabel(value) })));
   ms.hand.setOptions(counted('hand').sort((a, b) => a[0] - b[0])
     .map(([value, count]) => ({ value, count, label: t('handN', { n: value }) })));
   const fc = new Map();
@@ -670,7 +702,7 @@ function applyFilters() {
     if (extSet.size && !extSet.has(w.exterior || UNKNOWN)) return false;
     if (seatSet.size && !seatSet.has(w.seat || UNKNOWN)) return false;
     if (ownSet.size && !(w.prevOwnership || []).some((v) => ownSet.has(v))) return false;
-    if (locSet.size && !locSet.has(w.location)) return false;
+    if (locSet.size && !locSet.has(w.region)) return false;
     if (featSel.length && !featSel.every((k) => w.features && (w.features[k] || (k === 'leather' && w.features.nappa)))) return false;
     // Hidden ("not interested") cars: out of the normal view; the
     // "show hidden" toggle flips to showing only them, to review/unhide.
@@ -821,6 +853,7 @@ function parseCarRow(get, ts) {
     km: num(get('mileage_km')),
     hand: get('hand'),
     location: get('location'),
+    region: locRegion(get('location')),
     plate: get('plate') || get('car_number'), // plate column = source plate or Yad2 OCR (registry-verified)
     exterior: get('exterior_color'), // scraped/registry; cars-notes overrides
     ownership: get('ownership'),     // registry chain, e.g. "ליסינג 2022-05 → סוחר 2026-04"
@@ -1374,7 +1407,7 @@ function restoreFromUrl() {
   if (p.has('ext')) ms.ext.setSelected(p.getAll('ext'));
   if (p.has('seat')) ms.seat.setSelected(p.getAll('seat'));
   if (p.has('own')) ms.own.setSelected(p.getAll('own'));
-  if (p.has('loc')) ms.loc.setSelected(p.getAll('loc'));
+  if (p.has('loc')) ms.loc.setSelected([...new Set(p.getAll('loc').map(locRegion))]);
   if (p.has('feat')) ms.feat.setSelected(p.getAll('feat'));
   NUM_KEYS.forEach((k) => set(controls[k], k));
   set(controls.condition, 'condition');
@@ -1463,7 +1496,7 @@ function applyFilterQuery(qs) {
   ms.ext.setSelected(p.getAll('ext'));
   ms.seat.setSelected(p.getAll('seat'));
   ms.own.setSelected(p.getAll('own'));
-  ms.loc.setSelected(p.getAll('loc'));
+  ms.loc.setSelected([...new Set(p.getAll('loc').map(locRegion))]);
   ms.feat.setSelected(p.getAll('feat'));
   NUM_KEYS.forEach((k) => { controls[k].value = p.get(k) || ''; });
   controls.condition.value = p.get('condition') || '';
@@ -1489,7 +1522,7 @@ function describeQuery(qs) {
   const ex = p.getAll('ext'); if (ex.length) parts.push(t('extLabel') + ': ' + ex.map(colorLabel).join(', '));
   const fe = p.getAll('feat'); if (fe.length) parts.push(fe.map(featLabel).join(', '));
   const ow = p.getAll('own'); if (ow.length) parts.push(t('ownLabel') + ': ' + ow.join(', '));
-  const lo = p.getAll('loc'); if (lo.length) parts.push(t('locLabel') + ': ' + lo.join(', '));
+  const lo = p.getAll('loc'); if (lo.length) parts.push(t('locLabel') + ': ' + lo.map((x) => regionLabel(locRegion(x))).join(', '));
   const se = p.getAll('seat'); if (se.length) parts.push(t('seatLabel') + ': ' + se.map(colorLabel).join(', '));
   if (p.get('yearMin') || p.get('yearMax')) parts.push((p.get('yearMin') || '…') + '–' + (p.get('yearMax') || '…'));
   if (p.get('maxKm')) parts.push('≤' + fmtInt.format(p.get('maxKm')) + ' km');
