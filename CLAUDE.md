@@ -67,6 +67,10 @@ Each car card has a ✕ (`hide-btn`) that adds the car's `plate` (or Yad2 ad tok
 
 Where the ad gave no km, web-automation2 fills `mileage_km` from `test_km` and sets `km_note` ("טסט YYYY-MM"); the card shows it next to the km. Missing trim is filled from the registry's `ramat_gimur`.
 
+## Engine (Cars)
+
+`engine` column ("2.0 בנזין · 165 כ״ס"; fuel = בנזין/דיזל/היברידי/פלאג-אין) written by web-automation2 from the registry's WLTP model data by plate, else parsed from the ad's sub-model text → card row "מנוע" + `eng` multi-select (URL/saved searches) + free-text search.
+
 ## Equipment (Cars)
 
 `features` column ("key:src,…", written by web-automation2 `car_features.py`) → `parseFeatures()` → chips under the price (`featureChips`) and the `feat` filter (car must have **all** selected). Sources: `reg` = official per-plate equipment (data.gov.il degem-rechev-wltp) — solid blue; `trim` = implied by trim+year (Mazda Israel 2019/2022 trim announcements) — dashed, tooltip says "verify"; `ad` = seller text keywords — dotted. Reverse camera / lane keeping / pedestrian detection are hidden on cards (`CARD_HIDDEN_FEATURES`, ~every car has them) but filterable. Labels are in the free-text haystack.
