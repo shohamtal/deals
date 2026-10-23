@@ -182,7 +182,7 @@ const I18N = {
       editBadPw: 'סיסמה שגויה', editNoEndpoint: 'חסרה כתובת ה‑Apps Script (…/exec).', editEndpointPh: 'כתובת Apps Script (…/exec)',
       editSaveFail: 'השמירה נכשלה: {e}',
       hideTitle: 'לא מעניין – הסתר (רק בדפדפן הזה)', unhide: 'החזר', unhideTitle: 'החזר לתצוגה',
-      showHidden: 'הצג מוסתרים ({n})',
+      showHidden: 'הצג מוסתרים ({n})', onlyActive: 'מודעות פעילות בלבד', removedAd: '🚫 המודעה הוסרה',
     },
   },
   en: {
@@ -242,7 +242,7 @@ const I18N = {
       editBadPw: 'Wrong password', editNoEndpoint: 'Missing the Apps Script URL (…/exec).', editEndpointPh: 'Apps Script URL (…/exec)',
       editSaveFail: 'Save failed: {e}',
       hideTitle: 'Not interested — hide (this browser only)', unhide: 'Unhide', unhideTitle: 'Show again',
-      showHidden: 'Show hidden ({n})',
+      showHidden: 'Show hidden ({n})', onlyActive: 'Active listings only', removedAd: '🚫 Listing removed',
     },
   },
 };
@@ -270,7 +270,7 @@ const controls = {
   q: el('q'), condition: el('condition'),
   minPrice: el('minPrice'), maxPrice: el('maxPrice'),
   dateFrom: el('dateFrom'), dateTo: el('dateTo'),
-  sort: el('sort'), hasPrice: el('hasPriceChk'),
+  sort: el('sort'), hasPrice: el('hasPriceChk'), onlyActive: el('onlyActiveChk'),
   yearMin: el('yearMin'), yearMax: el('yearMax'), maxKm: el('maxKm'),
 };
 const ms = {};        // multi-select filters: brand, country, source (+ model, hand on cars)
@@ -608,6 +608,7 @@ async function switchCategory(cat) {
   setDefaultDates();
   controls.sort.value = 'date_desc';
   controls.hasPrice.checked = false;
+  controls.onlyActive.checked = true;
   MS_KEYS.forEach((k) => ms[k] && ms[k].clear());
   renderTabs();
   applyCatVisibility();
@@ -691,6 +692,7 @@ function applyFilters() {
   const min = parsePrice(controls.minPrice.value);
   const max = parsePrice(controls.maxPrice.value);
   const onlyPriced = controls.hasPrice.checked;
+  const onlyActive = activeCat.id === 'cars' && controls.onlyActive.checked;
   // date range (compare on local calendar days, inclusive)
   const fromMs = controls.dateFrom.value ? new Date(controls.dateFrom.value + 'T00:00:00').getTime() : null;
   const toMs = controls.dateTo.value ? new Date(controls.dateTo.value + 'T23:59:59.999').getTime() : null;
@@ -718,6 +720,7 @@ function applyFilters() {
     if (maxKm != null && w.km != null && w.km > maxKm) return false;
     if (condition && w.condition !== condition) return false;
     if (onlyPriced && w.priceUsd == null && w.priceNis == null) return false;
+    if (onlyActive && w.removed) return false;
     // The price range only filters listings that HAVE a price. Unpriced ones
     // (e.g. Facebook posts with the price "in private") pass through unless
     // "Only listings with a price" is ticked; otherwise setting any range
@@ -875,6 +878,7 @@ function parseCarRow(get, ts) {
       const [d, p] = e.split(':'); return { d: d === '?' ? null : d, p: num(p) };
     }).filter((e) => e.p),
     lastSeen: get('last_seen'),
+    removed: get('active') === '0', // web-automation2 sets 0 once a full scrape no longer lists the ad
   };
 }
 
@@ -998,6 +1002,10 @@ function priceHistChip(c) {
 // Last time a scraper saw the ad live. Facebook is sampled (12h, partial scroll),
 // so "not seen" is only flagged for the full-coverage sources.
 function seenRow(c) {
+  if (c.removed) {
+    const when = c.lastSeen ? ` · ${t('lastSeen')} ${fmtDate(c.lastSeen)}` : '';
+    return `<div class="row stale"><span class="val">${escapeHtml(t('removedAd') + when)}</span></div>`;
+  }
   if (!c.lastSeen) return '';
   const days = Math.floor((Date.now() - Date.parse(c.lastSeen)) / 864e5);
   const stale = days >= 2 && c.source !== 'Facebook';
@@ -1405,6 +1413,7 @@ function syncUrl() {
   if (controls.dateTo.value) p.set('to', controls.dateTo.value);
   if (controls.sort.value !== 'date_desc') p.set('sort', controls.sort.value);
   if (controls.hasPrice.checked) p.set('priced', '1');
+  if (!controls.onlyActive.checked) p.set('removed', '1');
   if (page > 1) p.set('page', String(page));
   const qs = p.toString();
   history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
@@ -1434,6 +1443,7 @@ function restoreFromUrl() {
   set(controls.dateTo, 'to');
   set(controls.sort, 'sort');
   controls.hasPrice.checked = p.get('priced') === '1';
+  controls.onlyActive.checked = p.get('removed') !== '1';
   const pg = parseInt(p.get('page'), 10);
   if (pg > 0) page = pg;
 }
@@ -1498,6 +1508,7 @@ function currentFilterQuery() {
   // attributes only, and always opens on the sliding last-3-months window.
   if (controls.sort.value !== 'date_desc') p.set('sort', controls.sort.value);
   if (controls.hasPrice.checked) p.set('priced', '1');
+  if (!controls.onlyActive.checked) p.set('removed', '1');
   return p.toString();
 }
 
@@ -1525,6 +1536,7 @@ function applyFilterQuery(qs) {
   setDefaultDates();
   controls.sort.value = p.get('sort') || 'date_desc';
   controls.hasPrice.checked = p.get('priced') === '1';
+  controls.onlyActive.checked = p.get('removed') !== '1';
   applyFilters();
 }
 
@@ -1657,6 +1669,7 @@ function bindEvents() {
   NUM_KEYS.forEach((k) => controls[k].addEventListener('input', debounced));
   ['condition', 'sort', 'dateFrom', 'dateTo'].forEach((k) => controls[k].addEventListener('change', applyFilters));
   controls.hasPrice.addEventListener('change', applyFilters);
+  controls.onlyActive.addEventListener('change', applyFilters);
 
   el('filtersToggle').addEventListener('click', () => {
     const open = el('filters').classList.toggle('open');
@@ -1673,6 +1686,7 @@ function bindEvents() {
     setDefaultDates(); // reset restores the default last-3-months range
     controls.sort.value = 'date_desc';
     controls.hasPrice.checked = false;
+    controls.onlyActive.checked = true;
     MS_KEYS.forEach((k) => ms[k].clear());
     applyFilters();
   });
