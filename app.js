@@ -128,7 +128,7 @@ const I18N = {
   he: {
     dir: 'rtl', htmlLang: 'he', flag: '🇮🇱', docTitle: 'דילים', brand: 'דילים',
     strings: {
-      filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, תיאור… (גם ״בטסט אחרון״, ״מתחת לשוק״)',
+      filtersToggle: 'סינון', searchLabel: 'חיפוש', searchPlaceholder: 'מותג, דגם, רפרנס, תיאור… (גם ״בטסט אחרון״, ״מתחת לשוק״)',
       excludeLabel: 'לא כולל', excludePlaceholder: 'הוסיפו מילה…',
       excludeNone: 'ללא', excludeCount: '{n} מילים',
       savedBtn: '★ שמורים', savedNamePh: 'שם החיפוש', savedAdd: 'שמירה',
@@ -167,6 +167,7 @@ const I18N = {
       results: 'מציג {a}–{b} מתוך {n} מודעות', listingsWord: 'מודעות',
       empty: 'אין מודעות התואמות את הסינון.', clearFilters: 'ניקוי סינונים',
       priceOnRequest: 'מחיר לפי פנייה', openListing: 'פתיחת המודעה ↗',
+      refLabel: 'רפרנס', refSearch: 'חיפוש כל המודעות עם הרפרנס הזה',
       metaSource: 'מקור', metaCountry: 'מדינה', metaListed: 'פורסם',
       prev: 'הקודם', next: 'הבא',
       loading: 'טוען נתונים חיים…',
@@ -194,7 +195,7 @@ const I18N = {
   en: {
     dir: 'ltr', htmlLang: 'en', flag: '🇺🇸', docTitle: 'Deals', brand: 'Deals',
     strings: {
-      filtersToggle: 'Filters', searchLabel: 'Search', searchPlaceholder: 'Brand, model, description…',
+      filtersToggle: 'Filters', searchLabel: 'Search', searchPlaceholder: 'Brand, model, ref, description…',
       excludeLabel: 'Exclude', excludePlaceholder: 'Add a word…',
       excludeNone: 'None', excludeCount: '{n} words',
       savedBtn: '★ Saved', savedNamePh: 'Search name', savedAdd: 'Save',
@@ -233,6 +234,7 @@ const I18N = {
       results: 'Showing {a}–{b} of {n} listings', listingsWord: 'listings',
       empty: 'No listings match your filters.', clearFilters: 'Clear filters',
       priceOnRequest: 'Price on request', openListing: 'Open listing ↗',
+      refLabel: 'Ref', refSearch: 'Search all listings with this reference',
       metaSource: 'Source', metaCountry: 'Country', metaListed: 'Listed',
       prev: '‹ Prev', next: 'Next ›',
       loading: 'Loading live data…',
@@ -696,6 +698,7 @@ function applyFilters() {
   // dropped, so an explicit search is never cancelled out by the exclude list.
   const exAll = excludeChips.getTerms().map((s) => s.toLowerCase()).filter(Boolean);
   const exTerms = q ? exAll.filter((term) => !q.includes(term)) : exAll;
+  const qc = compactRef(q); // "126610 ln", "310.32.42" → matches refs typed without separators
   const brandSet = new Set(ms.brand.getSelected());
   const countrySet = new Set(ms.country.getSelected());
   const sourceSet = new Set(ms.source.getSelected());
@@ -753,8 +756,8 @@ function applyFilters() {
     if (fromMs != null && !(w.time && w.time >= fromMs)) return false;
     if (toMs != null && !(w.time && w.time <= toMs)) return false;
     if (q || exTerms.length) {
-      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.location || ''} ${w.plate || ''} ${w.ownership || ''} ${w.engine || ''} ${carChipText(w)}`.toLowerCase();
-      if (q && !hay.includes(q)) return false;
+      const hay = `${w.brand} ${w.model} ${w.description} ${w.source} ${w.country} ${w.year || ''} ${w.ref ? w.ref + ' ' + compactRef(w.ref) : ''} ${w.family || ''} ${w.location || ''} ${w.plate || ''} ${w.ownership || ''} ${w.engine || ''} ${carChipText(w)}`.toLowerCase();
+      if (q && !hay.includes(q) && !(qc.length >= 4 && hay.includes(qc))) return false;
       if (exTerms.length && exTerms.some((term) => hay.includes(term))) return false;
     }
     return true;
@@ -941,6 +944,7 @@ function watchCardHtml(w) {
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(w.brand)}</span></div>
       <div class="card-model">${escapeHtml(w.model || '—')}</div>
+      ${w.ref ? `<span class="ref-chip" role="button" tabindex="0" data-ref="${escapeHtml(w.ref)}" title="${escapeHtml(t('refSearch'))}">${escapeHtml(t('refLabel'))} <bdi dir="ltr">${escapeHtml(w.ref)}</bdi></span>` : ''}
       ${priceBlock}
       ${w.mkt ? `<div class="mkt-row">${mktChip(w, 'g')}${mktChip(w, 'il')}</div>` : ''}
       ${desc}
@@ -1175,6 +1179,8 @@ function mktChip(w, scope) {
 // A chip links to ?cmp=scope~groupKey~cond~year~lo~hi&self=<url>; that page
 // re-runs buildMarket on the full sheet and shows exactly that group (same
 // scope / condition / years / trim band), cheapest first, ignoring the filters.
+const compactRef = (r) => String(r || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 function cmpHref(w, m) {
   const p = new URLSearchParams();
   if (lang !== 'he') p.set('lang', lang);
@@ -1583,6 +1589,15 @@ function setupEdit() {
       const was = deal.classList.contains('open');
       grid.querySelectorAll('.deal-chip.open').forEach((n) => n.classList.remove('open'));
       if (!was) deal.classList.add('open');
+      return;
+    }
+    const rc = e.target.closest('.ref-chip');
+    if (rc) {
+      e.preventDefault();
+      e.stopPropagation();
+      CMP = null;
+      controls.q.value = rc.dataset.ref;
+      applyFilters();
       return;
     }
     const chip = e.target.closest('.plate-chip');

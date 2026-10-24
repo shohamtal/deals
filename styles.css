@@ -792,3 +792,8 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 .cmp-close { font: inherit; font-size: .85rem; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
 .card.cmp-self { outline: 3px solid #2563eb; outline-offset: -3px; }
 .cmp-self-badge { position: absolute; bottom: 10px; inset-inline-start: 10px; z-index: 3; padding: 3px 9px; border-radius: 999px; background: #2563eb; color: #fff; font-size: .75rem; font-weight: 700; }
+
+/* Reference number under the model (click = search by it) */
+.ref-chip { display: inline-block; align-self: flex-start; margin: 2px 0 4px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: .78rem; color: var(--text-dim, #555); cursor: pointer; font-variant-numeric: tabular-nums; }
+.ref-chip:hover { border-color: var(--accent, #2563eb); color: var(--accent, #2563eb); }
+.cmp-bar[hidden] { display: none; }
