@@ -150,6 +150,7 @@ const I18N = {
       mktBelowIl: '{n}% מתחת למחיר בישראל', mktAboveIl: '{n}% מעל המחיר בישראל', mktFairIl: 'כמו המחיר בישראל',
       mktTipG: 'מודעות להשוואה (כל המקורות)', mktTipIl: 'מודעות להשוואה בישראל', mktByRef: 'אותו רפרנס: {r}', mktByFam: 'אותה משפחה (≈): {f}',
       mktYears: 'שנים {y}±3', mktRange: 'טווח (רבעונים)', mktMedian: 'מחיר חציוני',
+      mktOpen: 'לחצו לצפייה במודעות שאליהן הושווה ↗', cmpSelf: 'המודעה שהושוותה', cmpClose: '✕ חזרה לכל המודעות',
       sort_mkt_desc: 'הכי מתחת לשוק העולמי', sort_mktil_desc: 'הכי מתחת למחיר בישראל',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
       kmWarn: 'ק״מ בטסט אחרון {k}', kmWarnTip: 'במודעה {a} ק״מ, אבל בטסט השנתי האחרון נרשמו {b} ק״מ ({n}% יותר) — חשד להורדת ק״מ',
@@ -215,6 +216,7 @@ const I18N = {
       mktBelowIl: '{n}% below Israel price', mktAboveIl: '{n}% above Israel price', mktFairIl: 'Same as in Israel',
       mktTipG: 'Comparable listings (all sources)', mktTipIl: 'Comparable listings in Israel', mktByRef: 'Same reference: {r}', mktByFam: 'Same family (≈): {f}',
       mktYears: 'years {y}±3', mktRange: 'Range (quartiles)', mktMedian: 'Median price',
+      mktOpen: 'Click to see the listings it was compared with ↗', cmpSelf: 'Compared listing', cmpClose: '✕ Back to all listings',
       sort_mkt_desc: 'Most below global market', sort_mktil_desc: 'Most below Israel price',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
       kmWarn: 'Km at last test {k}', kmWarnTip: 'Ad says {a} km, but the last annual test recorded {b} km ({n}% more) — possible odometer rollback',
@@ -678,6 +680,17 @@ function buildFilters() {
 
 // ---- Filtering + sorting ----
 function applyFilters() {
+  if (CMP && activeCat.id === 'watches') {
+    VIEW = cmpView();
+    sortView();
+    page = 1;
+    syncUrl();
+    renderCmpBar();
+    render();
+    return;
+  }
+  CMP = null;
+  renderCmpBar();
   const q = controls.q.value.trim().toLowerCase();
   // Search wins over exclude: any exclude term contained in the search query is
   // dropped, so an explicit search is never cancelled out by the exclude list.
@@ -921,9 +934,10 @@ function watchCardHtml(w) {
   const cardTag = linkUrl ? 'a' : 'div';
   const hrefAttr = linkUrl ? ` href="${escapeHtml(linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
 
+  const isSelf = CMP && CMP.self && w.url === CMP.self;
   return `
-  <${cardTag} class="card"${hrefAttr}>
-    <div class="card-img-wrap">${img}${condBadge}${countryBadge}</div>
+  <${cardTag} class="card${isSelf ? ' cmp-self' : ''}"${hrefAttr}>
+    <div class="card-img-wrap">${img}${condBadge}${countryBadge}${isSelf ? `<span class="cmp-self-badge">${escapeHtml(t('cmpSelf'))}</span>` : ''}</div>
     <div class="card-body">
       <div class="card-brand"><span class="brand-name">${escapeHtml(w.brand)}</span></div>
       <div class="card-model">${escapeHtml(w.model || '—')}</div>
@@ -1017,6 +1031,8 @@ const MKT_LIMITS = { ref: [-0.6, 1.5], family: [-0.45, 0.9] }; // plausible gap 
 const refBase = (r) => (/^\d{3}\.\d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{3}$/.test(r || '') ? r.slice(0, 12) : '');
 const condClass = (c) => (/^new$/i.test(c || '') ? 'new' : 'used');
 
+let MKT = null; // { groups, latest } from the last buildMarket — the comparison view reads it
+
 function buildMarket(items) {
   const norm = (s) => String(s || '').trim().toLowerCase();
   // A ref seen with a family anywhere gives that family to rows that only have
@@ -1043,7 +1059,8 @@ function buildMarket(items) {
     if (!prev || w.time > prev.time) latest.set(w.url, w);
   });
   const comps = [...latest.values()];
-  const groups = new Map(); // "r|brand|ref" / "f|brand|family" → [watch]
+  MKT = { groups: new Map(), latest };
+  const groups = MKT.groups; // "r|brand|ref" / "b|brand|case ref" / "f|brand|family" → [watch]
   const add = (k, w) => { const a = groups.get(k); a ? a.push(w) : groups.set(k, [w]); };
   comps.forEach((w) => {
     if (w.ref) add('r|' + norm(w.brand) + '|' + w.ref, w);
@@ -1082,8 +1099,9 @@ function buildMarket(items) {
     if (a.length < min || (arr.listings || a.length) < MKT_MIN) return null;
     const m0 = q(a, 0.5);
     a = a.filter((p) => p >= m0 / MKT_TRIM && p <= m0 * MKT_TRIM);
+    a.lo = arr.listings ? 0 : m0 / MKT_TRIM; a.hi = arr.listings ? 0 : m0 * MKT_TRIM;
     if (a.length < min) return null;
-    return { med: q(a, 0.5), q1: q(a, 0.25), q3: q(a, 0.75), n: arr.listings || a.length };
+    return { med: q(a, 0.5), q1: q(a, 0.25), q3: q(a, 0.75), n: arr.listings || a.length, lo: a.lo, hi: a.hi };
   };
   const compare = (w, scope) => {
     const self = latest.get(w.url) === w ? w.priceUsd : null; // only the deduped row sits in the groups
@@ -1118,7 +1136,8 @@ function buildMarket(items) {
       // variant, parts, a typo or a scam) — no chip rather than a fake "−80%".
       const [lo, hi] = MKT_LIMITS[tr.level];
       if (gap < lo || gap > hi) return null;
-      return { ...st, level: tr.level, base: tr.k[0] === 'b', cond: tr.cond, year: tr.year || 0, gap };
+      return { ...st, level: tr.level, base: tr.k[0] === 'b', cond: tr.cond, year: tr.year || 0, gap,
+        k: tr.k, scope };
     }
     return null;
   };
@@ -1147,8 +1166,58 @@ function mktChip(w, scope) {
     <span class="dt-row"><span>${escapeHtml(t('mktRange'))}</span><b>${usd(m.q1)}–${usd(m.q3)}</b></span>
     <span class="dt-row dt-sum"><span>${escapeHtml(t('mktMedian'))}</span><b>${usd(m.med)}</b></span>
     <span class="dt-row"><span>${escapeHtml(t('dxAsked'))}</span><b>${usd(w.priceUsd)}</b></span>
+    <span class="dt-hint">${escapeHtml(t('mktOpen'))}</span>
   </span>`;
-  return `<span class="deal-chip mkt ${cls}" tabindex="0">${scope === 'il' ? '🇮🇱' : '🌍'} ${m.level === 'family' ? '≈' : ''}${escapeHtml(label)}${tip}</span>`;
+  return `<span class="deal-chip mkt ${cls}" tabindex="0" role="link" data-cmp="${escapeHtml(cmpHref(w, m))}">${scope === 'il' ? '🇮🇱' : '🌍'} ${m.level === 'family' ? '≈' : ''}${escapeHtml(label)}${tip}</span>`;
+}
+
+// ---- Comparison view: the listings one market chip was computed from ----
+// A chip links to ?cmp=scope~groupKey~cond~year~lo~hi&self=<url>; that page
+// re-runs buildMarket on the full sheet and shows exactly that group (same
+// scope / condition / years / trim band), cheapest first, ignoring the filters.
+function cmpHref(w, m) {
+  const p = new URLSearchParams();
+  if (lang !== 'he') p.set('lang', lang);
+  p.set('cmp', [m.scope, m.k, m.cond || '', m.year || 0, Math.floor(m.lo || 0), Math.ceil(m.hi || 0)].join('~'));
+  p.set('self', w.url);
+  p.set('sort', 'price_asc');
+  return location.pathname + '?' + p.toString();
+}
+
+let CMP = null; // parsed ?cmp while in the comparison view
+function parseCmp() {
+  const p = new URLSearchParams(location.search);
+  if (!p.has('cmp')) return null;
+  const [scope, k, cond, year, lo, hi] = p.get('cmp').split('~');
+  return { scope, k, cond, year: +year || 0, lo: +lo || 0, hi: +hi || 0, self: p.get('self') || '' };
+}
+
+function cmpView() {
+  const g = (MKT && MKT.groups.get(CMP.k)) || [];
+  return g.filter((w) => (CMP.scope !== 'il' || w.country === 'Israel')
+    && (!CMP.cond || condClass(w.condition) === CMP.cond)
+    && (!CMP.year || (w.year && Math.abs(w.year - CMP.year) <= 3))
+    && (!CMP.hi || (w.priceUsd >= CMP.lo && w.priceUsd <= CMP.hi)));
+}
+
+function renderCmpBar() {
+  const bar = el('cmpBar');
+  bar.hidden = !CMP;
+  if (!CMP) return;
+  const [kind, , val] = CMP.k.split('|');
+  const self = ALL.find((w) => w.url === CMP.self);
+  const name = self ? `${self.brand} · ` : '';
+  const basis = kind === 'f' ? t('mktByFam', { f: self ? self.family : val })
+    : t('mktByRef', { r: kind === 'b' ? (self ? refBase(self.ref) : val) + '.*' : (self ? self.ref : val) });
+  const bits = [CMP.scope === 'il' ? '🇮🇱 ' + t('mktTipIl') : '🌍 ' + t('mktTipG'), name + basis,
+    CMP.cond ? displayVal('condition', CMP.cond === 'new' ? 'new' : 'pre-owned') : '',
+    CMP.year ? t('mktYears', { y: CMP.year }) : ''].filter(Boolean);
+  el('cmpBarLabel').textContent = bits.join(' · ');
+}
+
+function exitCmp() {
+  CMP = null;
+  applyFilters();
 }
 
 // Price history: first → current, number of drops, each step in the tooltip.
@@ -1489,6 +1558,7 @@ function setupEdit() {
   el('editStart').addEventListener('click', startEdit);
   el('editCancel').addEventListener('click', () => el('editDialog').close());
   el('editStop').addEventListener('click', stopEdit);
+  el('cmpClose').addEventListener('click', exitCmp);
   el('showHiddenChk').addEventListener('change', (e) => { showHidden = e.target.checked; applyFilters(); });
   // Swatches sit inside the card's <a>: stop the tap from opening the listing.
   grid.addEventListener('click', (e) => {
@@ -1497,6 +1567,13 @@ function setupEdit() {
       e.preventDefault();
       e.stopPropagation();
       toggleHidden(hb.dataset.hide);
+      return;
+    }
+    const mk = e.target.closest('.deal-chip.mkt');
+    if (mk) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(mk.dataset.cmp, '_blank', 'noopener');
       return;
     }
     const deal = e.target.closest('.deal-chip');
@@ -1583,6 +1660,7 @@ function syncUrl() {
   if (controls.hasPrice.checked) p.set('priced', '1');
   if (!controls.onlyActive.checked) p.set('removed', '1');
   if (page > 1) p.set('page', String(page));
+  if (CMP) { const c = new URLSearchParams(location.search); p.set('cmp', c.get('cmp')); if (CMP.self) p.set('self', CMP.self); }
   const qs = p.toString();
   history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
 }
@@ -1886,7 +1964,7 @@ async function loadActive() {
       dataPromise = loadData(activeCat);
     }
     ALL = await dataPromise;
-    if (activeCat.id === 'watches') buildMarket(ALL);
+    if (activeCat.id === 'watches') { buildMarket(ALL); CMP = parseCmp(); }
     if (activeCat.id === 'cars') {
       scoreDeals(ALL);
       ALL.forEach((c) => {

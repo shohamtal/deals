@@ -784,3 +784,11 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 /* Watch market-price chips (global / Israel) */
 .mkt-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
 .deal-chip.mkt { font-size: .78rem; font-weight: 600; }
+
+/* Comparison view (opened from a market chip) */
+.deal-chip.mkt { cursor: pointer; }
+.dt-hint { display: block; margin-top: 6px; color: var(--accent, #2563eb); font-size: .78rem; }
+.cmp-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface, #fff); }
+.cmp-close { font: inherit; font-size: .85rem; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+.card.cmp-self { outline: 3px solid #2563eb; outline-offset: -3px; }
+.cmp-self-badge { position: absolute; bottom: 10px; inset-inline-start: 10px; z-index: 3; padding: 3px 9px; border-radius: 999px; background: #2563eb; color: #fff; font-size: .75rem; font-weight: 700; }
