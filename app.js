@@ -146,6 +146,11 @@ const I18N = {
       dropChip: 'ירד {n}%', upChip: 'עלה {n}%', dropTimes: '{k} הורדות', priceHistTitle: 'היסטוריית מחיר', histBefore: 'קודם',
       lastSeen: 'נראה לאחרונה', notSeenSince: 'לא נראה מאז {d}', daysListed: '{n} ימים במעקב', sort_drop_desc: 'הכי ירד במחיר',
       y2Label: 'מחירון יד2', y2Tip: 'מחירון יד2 ({tr}): {base} · משוקלל לק״מ/יד/בעלות: {w} (טווח {r}) · מבוקש: {a}', sort_y2_desc: 'הכי מתחת למחירון',
+      mktBelowG: '{n}% מתחת לשוק העולמי', mktAboveG: '{n}% מעל השוק העולמי', mktFairG: 'מחיר שוק עולמי',
+      mktBelowIl: '{n}% מתחת למחיר בישראל', mktAboveIl: '{n}% מעל המחיר בישראל', mktFairIl: 'כמו המחיר בישראל',
+      mktTipG: 'מודעות להשוואה (כל המקורות)', mktTipIl: 'מודעות להשוואה בישראל', mktByRef: 'אותו רפרנס: {r}', mktByFam: 'אותה משפחה (≈): {f}',
+      mktYears: 'שנים {y}±3', mktRange: 'טווח (רבעונים)', mktMedian: 'מחיר חציוני',
+      sort_mkt_desc: 'הכי מתחת לשוק העולמי', sort_mktil_desc: 'הכי מתחת למחיר בישראל',
       dealBelow: '{n}% מתחת לשוק', dealAbove: '{n}% מעל השוק', dealFair: 'מחיר שוק',
       kmWarn: 'ק״מ בטסט אחרון {k}', kmWarnTip: 'במודעה {a} ק״מ, אבל בטסט השנתי האחרון נרשמו {b} ק״מ ({n}% יותר) — חשד להורדת ק״מ',
       dxBase: 'בסיס: 2020 · 100 אלף ק״מ · פרטי{tr}', dxYear: 'שנתון {y}', dxKm: '{k} ק״מ',
@@ -206,6 +211,11 @@ const I18N = {
       dropChip: 'Down {n}%', upChip: 'Up {n}%', dropTimes: '{k} drops', priceHistTitle: 'Price history', histBefore: 'earlier',
       lastSeen: 'Last seen', notSeenSince: 'Not seen since {d}', daysListed: 'tracked {n} days', sort_drop_desc: 'Biggest price drop',
       y2Label: 'Yad2 price list', y2Tip: 'Yad2 list price ({tr}): {base} · weighted for km/hand/ownership: {w} (range {r}) · asking: {a}', sort_y2_desc: 'Most below price list',
+      mktBelowG: '{n}% below global market', mktAboveG: '{n}% above global market', mktFairG: 'Global market price',
+      mktBelowIl: '{n}% below Israel price', mktAboveIl: '{n}% above Israel price', mktFairIl: 'Same as in Israel',
+      mktTipG: 'Comparable listings (all sources)', mktTipIl: 'Comparable listings in Israel', mktByRef: 'Same reference: {r}', mktByFam: 'Same family (≈): {f}',
+      mktYears: 'years {y}±3', mktRange: 'Range (quartiles)', mktMedian: 'Median price',
+      sort_mkt_desc: 'Most below global market', sort_mktil_desc: 'Most below Israel price',
       dealBelow: '{n}% below market', dealAbove: '{n}% above market', dealFair: 'Market price',
       kmWarn: 'Km at last test {k}', kmWarnTip: 'Ad says {a} km, but the last annual test recorded {b} km ({n}% more) — possible odometer rollback',
       dxBase: 'Base: 2020 · 100k km · private{tr}', dxYear: 'Year {y}', dxKm: '{k} km',
@@ -758,6 +768,8 @@ function sortView() {
     deal_desc: (a, b) => descNullsLast(a.deal, b.deal),
     drop_desc: (a, b) => descNullsLast(a.drop, b.drop),
     y2_desc: (a, b) => descNullsLast(a.y2Gap, b.y2Gap),
+    mkt_desc: (a, b) => descNullsLast(a.mkt && a.mkt.g && -a.mkt.g.gap, b.mkt && b.mkt.g && -b.mkt.g.gap),
+    mktil_desc: (a, b) => descNullsLast(a.mkt && a.mkt.il && -a.mkt.il.gap, b.mkt && b.mkt.il && -b.mkt.il.gap),
   }[mode] || ((a, b) => b.time - a.time);
   VIEW.sort(cmp);
 }
@@ -833,6 +845,9 @@ function parseWatchRow(get, ts) {
     image: get('image_url'),
     description: get('description'),
     condition: get('condition'),
+    ref: get('ref'), family: get('family'),   // web-automation2 watch_specs.py
+    year: parseInt(get('year'), 10) || null,
+    forSale: get('for_sale'),                   // '0' = not a sale (Facebook wanted/question/comment)
   };
 }
 
@@ -913,6 +928,7 @@ function watchCardHtml(w) {
       <div class="card-brand"><span class="brand-name">${escapeHtml(w.brand)}</span></div>
       <div class="card-model">${escapeHtml(w.model || '—')}</div>
       ${priceBlock}
+      ${w.mkt ? `<div class="mkt-row">${mktChip(w, 'g')}${mktChip(w, 'il')}</div>` : ''}
       ${desc}
       <div class="card-meta">
         <div class="row"><span class="label">${escapeHtml(t('metaSource'))}</span><span class="val">${escapeHtml(w.source || '—')}</span></div>
@@ -981,6 +997,158 @@ function carCardHtml(c) {
       </div>
     </div>
   </${cardTag}>`;
+}
+
+// ---- Watch market price (global + Israel) ----
+// web-automation2 tags every row with `ref` (canonical reference, dial/strap
+// suffixes dropped), `family` ("Speedmaster Moonwatch") and `year`; Facebook
+// posts that aren't a sale get for_sale=0. Each watch is compared with the
+// median USD price of the same watch across the whole sheet ("global") and
+// across Israeli listings only. Same reference when ≥3 comparables have it,
+// else same model family (≈, narrowed to ±3 years when the year is known).
+// Same condition (new vs used) when there are enough of those.
+const MKT_MIN = 3;          // comparables needed for a chip
+const MKT_SPREAD = 1.8;     // family groups with Q3/Q1 above this are too mixed to price
+const MKT_TRIM = 2.5;       // drop comparables beyond ×/÷ this of the median (straps, typos)
+const MKT_BAND = 0.05;      // within ±5% = "market price"
+const MKT_LIMITS = { ref: [-0.6, 1.5], family: [-0.45, 0.9] }; // plausible gap per match level
+// Omega 310.32.42.50.02.001 → case part 310.32.42.50 (dial code dropped), the
+// fallback when the exact ref has too few comparables.
+const refBase = (r) => (/^\d{3}\.\d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{3}$/.test(r || '') ? r.slice(0, 12) : '');
+const condClass = (c) => (/^new$/i.test(c || '') ? 'new' : 'used');
+
+function buildMarket(items) {
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  // A ref seen with a family anywhere gives that family to rows that only have
+  // the ref (Japanese titles, bare SKUs) — so family-level Israeli rows can
+  // compare with them.
+  const refFam = new Map();
+  items.forEach((w) => {
+    if (!w.ref || !w.family) return;
+    const k = norm(w.brand) + '|' + w.ref, m = refFam.get(k) || new Map();
+    m.set(w.family, (m.get(w.family) || 0) + 1); refFam.set(k, m);
+  });
+  items.forEach((w) => {
+    w.mkt = null;
+    if (!w.family && w.ref) {
+      const m = refFam.get(norm(w.brand) + '|' + w.ref);
+      if (m) w.family = [...m.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    }
+  });
+  // One comparable per listing URL (latest row: price changes add rows).
+  const latest = new Map();
+  items.forEach((w) => {
+    if (!w.priceUsd || w.priceUsd < 100 || w.forSale === '0' || !(w.ref || w.family)) return;
+    const prev = latest.get(w.url);
+    if (!prev || w.time > prev.time) latest.set(w.url, w);
+  });
+  const comps = [...latest.values()];
+  const groups = new Map(); // "r|brand|ref" / "f|brand|family" → [watch]
+  const add = (k, w) => { const a = groups.get(k); a ? a.push(w) : groups.set(k, [w]); };
+  comps.forEach((w) => {
+    if (w.ref) add('r|' + norm(w.brand) + '|' + w.ref, w);
+    if (refBase(w.ref)) add('b|' + norm(w.brand) + '|' + refBase(w.ref), w);
+    if (w.family) add('f|' + norm(w.brand) + '|' + norm(w.family), w);
+  });
+  const q = (a, p) => { const i = (a.length - 1) * p, lo = Math.floor(i); return a[lo] + (a[Math.ceil(i)] - a[lo]) * (i - lo); };
+  const cache = new Map(); // filtered+sorted price arrays per (group, scope, cond, year)
+  const prices = (key, scope, cond, year) => {
+    const ck = [key, scope, cond, year].join('#');
+    if (cache.has(ck)) return cache.get(ck);
+    let g = groups.get(key) || [];
+    if (scope === 'il') g = g.filter((w) => w.country === 'Israel');
+    if (cond) g = g.filter((w) => condClass(w.condition) === cond);
+    if (year) g = g.filter((w) => w.year && Math.abs(w.year - year) <= 3);
+    let arr = g.map((w) => w.priceUsd).sort((a, b) => a - b);
+    if (key[0] === 'b') {
+      // Case-ref fallback: one vote per dial variant, so 15 listings of a
+      // special edition don't set the price of the plain model.
+      const byRef = new Map();
+      g.forEach((w) => { const a = byRef.get(w.ref); a ? a.push(w.priceUsd) : byRef.set(w.ref, [w.priceUsd]); });
+      arr = byRef.size < 2 ? [] : [...byRef.values()].map((a) => q(a.sort((x, y) => x - y), 0.5)).sort((a, b) => a - b);
+      arr.listings = g.length;
+    }
+    cache.set(ck, arr);
+    return arr;
+  };
+  // Median of `arr` without one copy of `self` (the watch itself), after trimming outliers.
+  const stats = (arr, self) => {
+    let a = arr;
+    if (self != null) {
+      const i = a.indexOf(self);
+      if (i >= 0) a = a.slice(0, i).concat(a.slice(i + 1));
+    }
+    const min = arr.listings ? 2 : MKT_MIN; // variant votes (from ≥3 listings) or listings
+    if (a.length < min || (arr.listings || a.length) < MKT_MIN) return null;
+    const m0 = q(a, 0.5);
+    a = a.filter((p) => p >= m0 / MKT_TRIM && p <= m0 * MKT_TRIM);
+    if (a.length < min) return null;
+    return { med: q(a, 0.5), q1: q(a, 0.25), q3: q(a, 0.75), n: arr.listings || a.length };
+  };
+  const compare = (w, scope) => {
+    const self = latest.get(w.url) === w ? w.priceUsd : null; // only the deduped row sits in the groups
+    const inScope = scope !== 'il' || w.country === 'Israel';
+    const cond = condClass(w.condition);
+    const tries = [];
+    if (w.ref) {
+      const k = 'r|' + norm(w.brand) + '|' + w.ref;
+      tries.push({ k, level: 'ref', cond }, { k, level: 'ref', cond: '' });
+      if (refBase(w.ref)) {
+        const kb = 'b|' + norm(w.brand) + '|' + refBase(w.ref);
+        tries.push({ k: kb, level: 'ref', cond }, { k: kb, level: 'ref', cond: '' });
+      }
+    }
+    // A stated ref with too few same-ref listings stays unpriced globally (a
+    // vintage 6605 is not "a Datejust"). Israeli shops rarely state refs, so the
+    // Israel comparison may still fall back to the family.
+    if (w.family && (!w.ref || scope === 'il')) {
+      const k = 'f|' + norm(w.brand) + '|' + norm(w.family);
+      if (w.year) tries.push({ k, level: 'family', cond, year: w.year }, { k, level: 'family', cond: '', year: w.year });
+      tries.push({ k, level: 'family', cond }, { k, level: 'family', cond: '' });
+    }
+    for (const tr of tries) {
+      const arr = prices(tr.k, scope, tr.cond, tr.year || 0);
+      const st = stats(arr, inScope && (!tr.cond || tr.cond === cond) && tr.k[0] !== 'b' ? self : null);
+      if (!st) continue;
+      // A family, or an Omega case ref spanning special-edition dials, can mix
+      // watches priced 2–3× apart — then a median says nothing about this one.
+      if ((tr.level === 'family' || tr.k[0] === 'b') && st.q3 / st.q1 > MKT_SPREAD) return null;
+      const gap = w.priceUsd / st.med - 1; // −0.2 = 20% below
+      // Far outside its own group = probably not the same watch (vintage/quartz
+      // variant, parts, a typo or a scam) — no chip rather than a fake "−80%".
+      const [lo, hi] = MKT_LIMITS[tr.level];
+      if (gap < lo || gap > hi) return null;
+      return { ...st, level: tr.level, base: tr.k[0] === 'b', cond: tr.cond, year: tr.year || 0, gap };
+    }
+    return null;
+  };
+  items.forEach((w) => {
+    if (!w.priceUsd || w.forSale === '0' || !(w.ref || w.family)) return;
+    const g = compare(w, 'all'), il = compare(w, 'il');
+    if (g || il) w.mkt = { g, il };
+  });
+}
+
+function mktChip(w, scope) {
+  const m = w.mkt && w.mkt[scope];
+  if (!m) return '';
+  const pct = Math.round(Math.abs(m.gap) * 100);
+  const cls = m.gap <= -0.15 ? 'hot' : m.gap <= -MKT_BAND ? 'good' : m.gap >= MKT_BAND ? 'high' : 'fair';
+  const where = scope === 'il' ? 'Il' : 'G';
+  const label = cls === 'fair' ? t('mktFair' + where) : t((m.gap < 0 ? 'mktBelow' : 'mktAbove') + where, { n: pct });
+  const usd = (v) => fmtUSD.format(Math.round(v / 10) * 10);
+  const basis = m.level === 'ref' ? t('mktByRef', { r: m.base ? refBase(w.ref) + '.*' : w.ref }) : t('mktByFam', { f: w.family });
+  const filt = [m.cond ? displayVal('condition', m.cond === 'new' ? 'new' : 'pre-owned') : '',
+    m.year ? t('mktYears', { y: m.year }) : ''].filter(Boolean).join(' · ');
+  const tip = `<span class="deal-tip" role="tooltip">
+    <span class="dt-row dt-base"><span>${escapeHtml(t(scope === 'il' ? 'mktTipIl' : 'mktTipG'))}</span><b>${m.n}</b></span>
+    <span class="dt-row"><span>${escapeHtml(basis)}</span></span>
+    ${filt ? `<span class="dt-row"><span>${escapeHtml(filt)}</span></span>` : ''}
+    <span class="dt-row"><span>${escapeHtml(t('mktRange'))}</span><b>${usd(m.q1)}–${usd(m.q3)}</b></span>
+    <span class="dt-row dt-sum"><span>${escapeHtml(t('mktMedian'))}</span><b>${usd(m.med)}</b></span>
+    <span class="dt-row"><span>${escapeHtml(t('dxAsked'))}</span><b>${usd(w.priceUsd)}</b></span>
+  </span>`;
+  return `<span class="deal-chip mkt ${cls}" tabindex="0">${scope === 'il' ? '🇮🇱' : '🌍'} ${m.level === 'family' ? '≈' : ''}${escapeHtml(label)}${tip}</span>`;
 }
 
 // Price history: first → current, number of drops, each step in the tooltip.
@@ -1718,6 +1886,7 @@ async function loadActive() {
       dataPromise = loadData(activeCat);
     }
     ALL = await dataPromise;
+    if (activeCat.id === 'watches') buildMarket(ALL);
     if (activeCat.id === 'cars') {
       scoreDeals(ALL);
       ALL.forEach((c) => {

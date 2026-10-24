@@ -780,3 +780,7 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 20px 40px; }
 .feat.reg { border-color: rgba(37,99,235,.35); color: #1e40af; background: rgba(37,99,235,.06); }
 .feat.trim { border-style: dashed; }
 .feat.ad { border-style: dotted; }
+
+/* Watch market-price chips (global / Israel) */
+.mkt-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.deal-chip.mkt { font-size: .78rem; font-weight: 600; }
